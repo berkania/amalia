@@ -481,4 +481,6 @@ with col2:
         """
         st.components.v1.html(check_voice_html, height=0)
         
-        st.rer
+        st.rerun()
+
+
