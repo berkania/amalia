@@ -4,10 +4,17 @@ from datetime import datetime
 import sqlite3
 import bcrypt
 import html
+import os
+import logging
 
-# Fonction pour obtenir la connexion DB (déplacée au début pour éviter NameError)
+# Configuration du logging pour les erreurs
+logging.basicConfig(level=logging.ERROR)
+
+# Fonction pour obtenir la connexion DB
 def get_db_connection():
+    os.makedirs("db", exist_ok=True)  # Crée le dossier si nécessaire
     conn = sqlite3.connect('db/users.db', check_same_thread=False)
+    conn.execute("PRAGMA foreign_keys = ON")  # Active les foreign keys
     c = conn.cursor()
     # Tables utilisateurs, chats, messages
     c.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -31,42 +38,88 @@ def get_db_connection():
 
 # Fonctions pour la persistance des chats et messages
 def save_chat(username, chat_id, chat_data):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("INSERT INTO chats (username, created_at) VALUES (?, ?)", (username, chat_data["created"]))
-    chat_db_id = c.lastrowid
-    for msg in chat_data["messages"]:
-        c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
-                  (chat_db_id, msg["role"], msg["content"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
-    conn.close()
-    return chat_db_id
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("INSERT INTO chats (username, created_at) VALUES (?, ?)", (username, chat_data["created"]))
+        chat_db_id = c.lastrowid
+        for msg in chat_data["messages"]:
+            c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
+                      (chat_db_id, msg["role"], msg["content"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Erreur lors de la sauvegarde du chat : {e}")
+    finally:
+        conn.close()
 
 def load_chats(username):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT id, created_at FROM chats WHERE username=?", (username,))
-    chats_db = c.fetchall()
     chats = {}
-    for chat_db_id, created_at in chats_db:
-        c.execute("SELECT sender, content, timestamp FROM messages WHERE chat_id=? ORDER BY timestamp", (chat_db_id,))
-        messages = [{"role": row[0], "content": row[1]} for row in c.fetchall()]
-        chat_id = f"chat_{chat_db_id}"
-        chats[chat_id] = {
-            "name": "Nouveau Chat" if not messages else messages[0]["content"][:30] + "..." if len(messages[0]["content"]) > 30 else messages[0]["content"],
-            "messages": messages,
-            "created": created_at
-        }
-    conn.close()
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT id, created_at FROM chats WHERE username=?", (username,))
+        chats_db = c.fetchall()
+        for chat_db_id, created_at in chats_db:
+            c.execute("SELECT sender, content, timestamp FROM messages WHERE chat_id=? ORDER BY timestamp", (chat_db_id,))
+            messages = [{"role": row[0], "content": row[1]} for row in c.fetchall()]
+            chat_id = f"chat_{chat_db_id}"
+            chats[chat_id] = {
+                "name": "Nouveau Chat" if not messages else messages[0]["content"][:30] + "..." if len(messages[0]["content"]) > 30 else messages[0]["content"],
+                "messages": messages,
+                "created": created_at
+            }
+    except Exception as e:
+        logging.error(f"Erreur lors du chargement des chats : {e}")
+    finally:
+        conn.close()
     return chats
 
 def save_message(chat_id, sender, content):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
-              (chat_id, sender, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
+                  (chat_id, sender, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Erreur lors de la sauvegarde du message : {e}")
+    finally:
+        conn.close()
+
+# Fonctions pour utilisateurs
+def validate_user(username, password):
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username=?", (username,))
+        row = c.fetchone()
+        if row and bcrypt.checkpw(password.encode('utf-8'), row[0]):
+            return True
+        return False
+    except Exception as e:
+        logging.error(f"Erreur lors de la validation : {e}")
+        return False
+    finally:
+        conn.close()
+
+def add_user(username, password):
+    if not username or not password:
+        return False
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        logging.error(f"L'utilisateur '{username}' existe déjà.")
+        return False
+    except Exception as e:
+        logging.error(f"Erreur lors de l'ajout de l'utilisateur : {e}")
+        return False
+    finally:
+        conn.close()
 
 st.set_page_config(
     page_title="Amalia - Assistant IA",
@@ -75,72 +128,78 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Initialisation de la session
 if "logged_user" not in st.session_state:
     st.session_state.logged_user = None
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "show_login" not in st.session_state:
+    st.session_state.show_login = False
+if "show_register" not in st.session_state:
+    st.session_state.show_register = False
 
 if not st.session_state.logged_in:
     st.sidebar.title("Connexion")
-    username = st.sidebar.text_input("Nom d'utilisateur")
-    password = st.sidebar.text_input("Mot de passe", type="password")
-
-    def validate_user(username, password):
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute("SELECT password FROM users WHERE username=?", (username,))
-        row = c.fetchone()
-        conn.close()
-        if row and bcrypt.checkpw(password.encode(), row[0]):
-            return True
-        return False
-
-    def add_user(username, password):
-        conn = get_db_connection()
-        c = conn.cursor()
-        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-        try:
-            c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
-            conn.commit()
-        except sqlite3.IntegrityError:
-            pass
-        conn.close()
-
+    
+    # Boutons pour afficher les formulaires
     if st.sidebar.button("Se connecter"):
-        if validate_user(username, password):
-            st.session_state.logged_user = username
-            st.session_state.logged_in = True
-            # Charger les chats depuis la DB
-            st.session_state.chats = load_chats(username)
-            if not st.session_state.chats:
-                # Créer un premier chat si aucun
-                chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-                st.session_state.current_chat_id = chat_id
-                st.session_state.chats[chat_id] = {
-                    "name": "Nouveau Chat",
-                    "messages": [],
-                    "created": datetime.now().strftime("%d/%m/%Y %H:%M")
-                }
-            else:
-                st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
-            st.rerun()
-        else:
-            st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
-
-    st.sidebar.markdown("---")
-    st.sidebar.write("Ou créer un compte :")
-    new_user = st.sidebar.text_input("Nouveau nom d'utilisateur")
-    new_password = st.sidebar.text_input("Nouveau mot de passe", type="password")
+        st.session_state.show_login = True
+        st.session_state.show_register = False
+        st.rerun()
+    
     if st.sidebar.button("Créer un compte"):
-        add_user(new_user, new_password)
-        st.sidebar.success("Compte créé avec succès, connecte-toi !")
-
+        st.session_state.show_register = True
+        st.session_state.show_login = False
+        st.rerun()
+    
+    # Formulaire de connexion (affiché seulement si bouton cliqué)
+    if st.session_state.show_login:
+        st.sidebar.subheader("Connexion")
+        username = st.sidebar.text_input("Nom d'utilisateur", key="login_username")
+        password = st.sidebar.text_input("Mot de passe", type="password", key="login_password")
+        if st.sidebar.button("Valider Connexion"):
+            if validate_user(username, password):
+                st.session_state.logged_user = username
+                st.session_state.logged_in = True
+                st.session_state.show_login = False
+                # Charger les chats depuis la DB
+                st.session_state.chats = load_chats(username)
+                if not st.session_state.chats:
+                    # Créer un premier chat si aucun
+                    chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    st.session_state.current_chat_id = chat_id
+                    st.session_state.chats[chat_id] = {
+                        "name": "Nouveau Chat",
+                        "messages": [],
+                        "created": datetime.now().strftime("%d/%m/%Y %H:%M")
+                    }
+                else:
+                    st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
+                st.rerun()
+            else:
+                st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
+    
+    # Formulaire d'inscription (affiché seulement si bouton cliqué)
+    if st.session_state.show_register:
+        st.sidebar.subheader("Créer un compte")
+        new_user = st.sidebar.text_input("Nouveau nom d'utilisateur", key="register_username")
+        new_password = st.sidebar.text_input("Nouveau mot de passe", type="password", key="register_password")
+        if st.sidebar.button("Valider Inscription"):
+            if add_user(new_user, new_password):
+                st.sidebar.success("Compte créé avec succès ! Cliquez sur 'Se connecter' pour vous connecter.")
+                st.session_state.show_register = False
+                st.rerun()
+            else:
+                st.sidebar.error("Erreur lors de la création du compte (utilisateur existe déjà ou champs vides).")
+    
     st.stop()  # Stop le reste de l'app si pas connecté
 else:
     st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
     if st.sidebar.button("Déconnexion"):
         st.session_state.logged_user = None
         st.session_state.logged_in = False
+        st.session_state.show_login = False
+        st.session_state.show_register = False
         st.rerun()
 
 # CSS professionnel avec texte NOIR
@@ -406,18 +465,3 @@ with col2:
         st.components.v1.html(check_voice_html, height=0)
         
         st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
