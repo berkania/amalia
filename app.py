@@ -39,7 +39,7 @@ if st.button("Envoyer") and user_input:
             messages.append({"role": "user", "content": user_input})
             
             data = {
-                "model": "llama3-70b-8192",
+                "model": "llama-3.1-70b-versatile",
                 "messages": messages
             }
             
@@ -60,4 +60,5 @@ for msg in st.session_state.history:
         st.write(msg["user"])
     with st.chat_message("assistant"):
         st.write(msg["assistant"])
+
 
