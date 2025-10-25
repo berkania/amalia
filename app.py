@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
 from datetime import datetime
+import sqlite3
+import bcrypt
 
 st.set_page_config(
     page_title="Amalia - Assistant IA",
@@ -8,6 +10,61 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded"
 )
+if "logged_user" not in st.session_state:
+    st.session_state.logged_user = None
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.sidebar.title("Connexion")
+    username = st.sidebar.text_input("Nom d'utilisateur")
+    password = st.sidebar.text_input("Mot de passe", type="password")
+
+    def validate_user(username, password):
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username=?", (username,))
+        row = c.fetchone()
+        conn.close()
+        if row and bcrypt.checkpw(password.encode(), row[0]):
+            return True
+        return False
+
+    def add_user(username, password):
+        conn = get_db_connection()
+        c = conn.cursor()
+        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        try:
+            c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+        conn.close()
+
+    if st.sidebar.button("Se connecter"):
+        if validate_user(username, password):
+            st.session_state.logged_user = username
+            st.session_state.logged_in = True
+            st.experimental_rerun()
+        else:
+            st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
+
+    st.sidebar.markdown("---")
+    st.sidebar.write("Ou créer un compte :")
+    new_user = st.sidebar.text_input("Nouveau nom d'utilisateur")
+    new_password = st.sidebar.text_input("Nouveau mot de passe", type="password")
+    if st.sidebar.button("Créer un compte"):
+        add_user(new_user, new_password)
+        st.sidebar.success("Compte créé avec succès, connecte-toi !")
+
+    st.stop()  # Stop le reste de l'app si pas connecté
+else:
+    st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
+    if st.sidebar.button("Déconnexion"):
+        st.session_state.logged_user = None
+        st.session_state.logged_in = False
+        st.experimental_rerun()
+
 
 # CSS professionnel avec texte NOIR
 st.markdown("""
@@ -65,6 +122,28 @@ if "current_chat_id" not in st.session_state:
         "messages": [],
         "created": datetime.now().strftime("%d/%m/%Y %H:%M")
     }
+def get_db_connection():
+    conn = sqlite3.connect('db/users.db', check_same_thread=False)
+    c = conn.cursor()
+    # Tables utilisateurs, chats, messages
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL
+            )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS chats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                created_at TEXT
+            )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER,
+                sender TEXT,
+                content TEXT,
+                timestamp TEXT
+            )''')
+    conn.commit()
+    return conn
 
 # Fonction pour obtenir la réponse
 def get_response(user_input, chat_id):
@@ -266,6 +345,7 @@ with col2:
         st.components.v1.html(check_voice_html, height=0)
         
         st.rerun()
+
 
 
 
