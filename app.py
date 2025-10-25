@@ -1,14 +1,12 @@
 import streamlit as st
 import requests
-import base64
-from io import BytesIO
 
 st.set_page_config(page_title="Amalia - Assistant Vocal IA 🤖", page_icon="🤖", layout="wide")
 
 st.title("🤖 Amalia - Ton assistant vocal IA")
-st.write("🎤 Utilise le micro de ton navigateur ou écris ta question !")
+st.markdown("**🎤 Parle au micro** = Réponse vocale | **✍️ Écris** = Réponse écrite")
 
-# CSS personnalisé pour le style
+# CSS personnalisé
 st.markdown("""
     <style>
     .stButton button {
@@ -23,6 +21,10 @@ st.markdown("""
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if "voice_mode" not in st.session_state:
+    st.session_state.voice_mode = False
+if "voice_transcript" not in st.session_state:
+    st.session_state.voice_transcript = ""
 
 # Fonction pour obtenir la réponse d'Amalia
 def get_amalia_response(user_input):
@@ -62,11 +64,11 @@ def get_amalia_response(user_input):
     except Exception as e:
         return f"Erreur : {str(e)}"
 
-# Zone de saisie avec reconnaissance vocale HTML5
-st.markdown("### 💬 Parle ou écris ta question")
+# Interface avec micro vocal
+st.markdown("### 🎤 Reconnaissance vocale")
 
-# HTML pour le bouton micro avec reconnaissance vocale native
-audio_html = """
+# HTML pour le bouton micro avec reconnaissance vocale
+voice_html = """
 <div style="margin-bottom: 20px;">
     <button id="voiceBtn" style="
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -79,16 +81,14 @@ audio_html = """
         box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         transition: all 0.3s ease;
     " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        🎤 Appuie pour parler
+        🎤 Clique et parle
     </button>
-    <div id="status" style="margin-top: 10px; font-size: 14px; color: #666;"></div>
-    <textarea id="voiceInput" style="display:none;"></textarea>
+    <div id="status" style="margin-top: 15px; font-size: 16px; font-weight: bold; color: #333;"></div>
 </div>
 
 <script>
 const voiceBtn = document.getElementById('voiceBtn');
 const status = document.getElementById('status');
-const voiceInput = document.getElementById('voiceInput');
 
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -97,87 +97,129 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.continuous = false;
     recognition.interimResults = false;
 
+    let isListening = false;
+
     voiceBtn.onclick = function() {
-        recognition.start();
-        status.textContent = '🎙️ Écoute en cours... Parle maintenant !';
-        voiceBtn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+        if (!isListening) {
+            recognition.start();
+            isListening = true;
+            status.textContent = '🎙️ Écoute en cours... Parle maintenant !';
+            status.style.color = '#e74c3c';
+            voiceBtn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+            voiceBtn.textContent = '⏹️ Arrêter';
+        } else {
+            recognition.stop();
+            isListening = false;
+            voiceBtn.textContent = '🎤 Clique et parle';
+            voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        }
     };
 
     recognition.onresult = function(event) {
         const transcript = event.results[0][0].transcript;
-        voiceInput.value = transcript;
         status.textContent = '✅ Tu as dit : "' + transcript + '"';
+        status.style.color = '#27ae60';
+        isListening = false;
+        voiceBtn.textContent = '🎤 Clique et parle';
         voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
         
-        // Trigger Streamlit rerun avec le texte
-        const textInput = window.parent.document.querySelector('input[type="text"]');
-        if (textInput) {
-            textInput.value = transcript;
-            textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+        // Envoyer à Streamlit via query params
+        window.parent.postMessage({
+            type: 'streamlit:setComponentValue',
+            data: {transcript: transcript, voice_mode: true}
+        }, '*');
     };
 
     recognition.onerror = function(event) {
-        status.textContent = '❌ Erreur : ' + event.error;
+        status.textContent = '❌ Erreur : Assure-toi d\'autoriser le micro !';
+        status.style.color = '#e74c3c';
+        isListening = false;
+        voiceBtn.textContent = '🎤 Clique et parle';
         voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
     };
 
     recognition.onend = function() {
+        isListening = false;
+        voiceBtn.textContent = '🎤 Clique et parle';
         voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
     };
 } else {
-    status.textContent = '❌ La reconnaissance vocale n\'est pas supportée sur ce navigateur. Utilise Chrome ou Edge.';
+    status.textContent = '❌ Utilise Chrome, Edge ou Safari pour le micro !';
+    status.style.color = '#e74c3c';
     voiceBtn.disabled = true;
 }
 </script>
 """
 
-st.components.v1.html(audio_html, height=150)
+voice_component = st.components.v1.html(voice_html, height=150)
 
-# Zone de texte alternative
-user_input = st.text_input("Ou écris ta question ici:", key="text_input", placeholder="Tape ta question ou utilise le micro ci-dessus")
+# Capturer la transcription vocale
+if voice_component:
+    if "transcript" in voice_component:
+        st.session_state.voice_transcript = voice_component["transcript"]
+        st.session_state.voice_mode = voice_component.get("voice_mode", False)
 
-# Bouton d'envoi
-col1, col2 = st.columns([1, 5])
-with col1:
-    send_button = st.button("📤 Envoyer")
-
-if send_button and user_input:
+# Traiter automatiquement la transcription vocale
+if st.session_state.voice_transcript and st.session_state.voice_mode:
+    user_voice_input = st.session_state.voice_transcript
+    
     with st.spinner("🤔 Amalia réfléchit..."):
-        answer = get_amalia_response(user_input)
-        st.session_state.history.append({"user": user_input, "assistant": answer})
+        answer = get_amalia_response(user_voice_input)
+        st.session_state.history.append({"user": user_voice_input, "assistant": answer, "mode": "voice"})
         
-        # Synthèse vocale avec API Groq TTS (si disponible) ou HTML5
-        st.success("✨ Réponse d'Amalia :")
-        st.info(answer)
+        # Afficher la réponse
+        st.success(f"**Tu as dit :** {user_voice_input}")
+        st.info(f"**🤖 Amalia répond :** {answer}")
         
-        # Lecture vocale HTML5
+        # Lecture vocale automatique
         speech_html = f"""
         <script>
-        const text = `{answer.replace('`', '').replace('"', '\\"')}`;
+        const text = `{answer.replace('`', '').replace('"', '\\"').replace("'", "\\'")}`;
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'fr-FR';
         utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+        utterance.pitch = 1.1;
         window.speechSynthesis.speak(utterance);
         </script>
         """
         st.components.v1.html(speech_html, height=0)
+    
+    # Réinitialiser
+    st.session_state.voice_transcript = ""
+    st.session_state.voice_mode = False
 
-# Affichage de l'historique
+# Mode texte
+st.markdown("---")
+st.markdown("### ✍️ Ou écris ta question")
+
+user_text_input = st.text_input("Tape ta question ici:", key="text_input", placeholder="Écris ta question...")
+
+if st.button("📤 Envoyer (mode texte)"):
+    if user_text_input:
+        with st.spinner("🤔 Amalia réfléchit..."):
+            answer = get_amalia_response(user_text_input)
+            st.session_state.history.append({"user": user_text_input, "assistant": answer, "mode": "text"})
+            
+            # Afficher la réponse (texte seulement)
+            st.success("**✨ Réponse d'Amalia :**")
+            st.write(answer)
+
+# Historique
 if st.session_state.history:
     st.markdown("---")
-    st.markdown("### 📜 Historique des conversations")
+    st.markdown("### 📜 Historique")
     
     for idx, msg in enumerate(reversed(st.session_state.history[-5:])):
-        with st.expander(f"💬 Conversation {len(st.session_state.history) - idx}"):
+        mode_icon = "🎤" if msg.get("mode") == "voice" else "✍️"
+        with st.expander(f"{mode_icon} Conversation {len(st.session_state.history) - idx}"):
             st.markdown(f"**👤 Toi :** {msg['user']}")
             st.markdown(f"**🤖 Amalia :** {msg['assistant']}")
             
-            # Bouton pour réécouter
+            # Bouton réécouter
+            replay_key = f"replay_{idx}"
             replay_html = f"""
             <button onclick="
-                const text = `{msg['assistant'].replace('`', '').replace('"', '\\"')}`;
+                const text = `{msg['assistant'].replace('`', '').replace('"', '\\"').replace("'", "\\'")}`;
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'fr-FR';
                 window.speechSynthesis.speak(utterance);
@@ -188,14 +230,15 @@ if st.session_state.history:
                 padding: 8px 16px;
                 border-radius: 5px;
                 cursor: pointer;
-            ">🔊 Réécouter</button>
+            ">🔊 Réécouter cette réponse</button>
             """
-            st.components.v1.html(replay_html, height=50)
+            st.components.v1.html(replay_html, height=50, key=replay_key)
     
-    # Bouton pour effacer l'historique
-    if st.button("🗑️ Effacer tout l'historique"):
+    if st.button("🗑️ Effacer l'historique"):
         st.session_state.history = []
         st.rerun()
+
+
 
 
 
