@@ -1,33 +1,36 @@
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Amalia - Assistant Vocal IA 🤖", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Amalia 🤖", page_icon="🤖", layout="centered")
 
-st.title("🤖 Amalia - Ton assistant vocal IA")
-st.markdown("**🎤 Parle au micro** = Réponse vocale | **✍️ Écris** = Réponse écrite")
-
-# CSS personnalisé
+# CSS pour style ChatGPT
 st.markdown("""
-    <style>
-    .stButton button {
-        background-color: #2ecc71;
-        color: white;
-        border-radius: 10px;
-        padding: 10px 20px;
-        font-size: 16px;
+<style>
+    .main > div {
+        padding-bottom: 100px;
     }
-    </style>
+    .stChatInput {
+        position: fixed;
+        bottom: 0;
+        background: white;
+        padding: 20px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    }
+</style>
 """, unsafe_allow_html=True)
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+st.title("🤖 Amalia")
+
+# Initialisation
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # Fonction pour obtenir la réponse d'Amalia
 def get_amalia_response(user_input):
     api_key = st.secrets.get("GROQ_API_KEY", "")
     
     if not api_key:
-        return "⚠️ Clé API Groq manquante !"
+        return "⚠️ Clé API manquante"
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -36,19 +39,17 @@ def get_amalia_response(user_input):
     
     url = "https://api.groq.com/openai/v1/chat/completions"
     
-    messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et créative. Réponds de manière concise."}]
+    messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale."}]
     
-    for msg in st.session_state.history:
-        messages.append({"role": "user", "content": msg["user"]})
-        messages.append({"role": "assistant", "content": msg["assistant"]})
+    for msg in st.session_state.messages:
+        messages.append({"role": msg["role"], "content": msg["content"]})
     
     messages.append({"role": "user", "content": user_input})
     
     data = {
         "model": "llama-3.3-70b-versatile",
         "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 500
+        "temperature": 0.7
     }
     
     try:
@@ -56,176 +57,167 @@ def get_amalia_response(user_input):
         if resp.status_code == 200:
             return resp.json()["choices"][0]["message"]["content"]
         else:
-            return f"Erreur API : {resp.status_code}"
+            return f"Erreur {resp.status_code}"
     except Exception as e:
-        return f"Erreur : {str(e)}"
+        return f"Erreur: {str(e)}"
 
-# Interface avec micro vocal
-st.markdown("### 🎤 Mode Vocal")
-st.markdown("Clique sur le bouton, **autorise le micro**, parle, et Amalia te répondra à l'oral !")
+# Afficher l'historique
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
-# HTML pour reconnaissance vocale + envoi automatique
-voice_html = """
-<div style="margin-bottom: 20px;">
-    <button id="voiceBtn" style="
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 20px 40px;
-        border-radius: 50px;
-        font-size: 20px;
-        cursor: pointer;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        🎤 Clique pour parler
-    </button>
-    <div id="status" style="margin-top: 15px; font-size: 16px; font-weight: bold;"></div>
-    <input type="hidden" id="voiceResult" value="">
-</div>
+# Interface de chat avec micro intégré
+chat_container = st.container()
 
-<script>
-const voiceBtn = document.getElementById('voiceBtn');
-const status = document.getElementById('status');
-const voiceResult = document.getElementById('voiceResult');
+with chat_container:
+    # HTML pour la barre de chat style ChatGPT avec micro
+    chat_html = """
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 20px; border-top: 1px solid #ddd; z-index: 1000;">
+        <div style="max-width: 800px; margin: 0 auto; display: flex; gap: 10px; align-items: center;">
+            <button id="micBtn" style="
+                background: #f0f0f0;
+                border: none;
+                padding: 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 20px;
+                transition: all 0.2s;
+            " title="Appuie pour parler">🎤</button>
+            
+            <input type="text" id="chatInput" placeholder="Écris ton message..." style="
+                flex: 1;
+                padding: 12px 16px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                font-size: 16px;
+                outline: none;
+            ">
+            
+            <button id="sendBtn" style="
+                background: #10a37f;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 18px;
+            ">➤</button>
+        </div>
+        <div id="status" style="text-align: center; margin-top: 10px; font-size: 14px; color: #666;"></div>
+    </div>
 
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    <script>
+    const micBtn = document.getElementById('micBtn');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const status = document.getElementById('status');
+    
+    let isRecording = false;
+    let recognition = null;
 
-    voiceBtn.onclick = function() {
-        recognition.start();
-        status.textContent = '🎙️ Écoute en cours... Parle maintenant !';
-        status.style.color = '#e74c3c';
-        voiceBtn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
-    };
+    // Configuration de la reconnaissance vocale
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'fr-FR';
+        recognition.continuous = false;
 
-    recognition.onresult = function(event) {
-        const transcript = event.results[0][0].transcript;
-        voiceResult.value = transcript;
-        status.textContent = '✅ Tu as dit : "' + transcript + '"';
-        status.style.color = '#27ae60';
-        voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-        
-        // Déclencher le formulaire Streamlit
-        const forms = window.parent.document.querySelectorAll('form');
-        if (forms.length > 0) {
-            const input = forms[0].querySelector('input[type="text"]');
-            if (input) {
-                input.value = transcript;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                
-                // Simuler le clic sur le bouton vocal
-                const buttons = window.parent.document.querySelectorAll('button');
-                for (let btn of buttons) {
-                    if (btn.textContent.includes('🎤 Envoyer en mode vocal')) {
-                        btn.click();
-                        break;
-                    }
-                }
+        micBtn.onclick = function() {
+            if (!isRecording) {
+                recognition.start();
+                isRecording = true;
+                micBtn.style.background = '#ff4444';
+                micBtn.textContent = '⏺️';
+                status.textContent = '🎙️ Écoute en cours...';
+            } else {
+                recognition.stop();
+                isRecording = false;
+                micBtn.style.background = '#f0f0f0';
+                micBtn.textContent = '🎤';
+                status.textContent = '';
             }
+        };
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            chatInput.value = transcript;
+            status.textContent = '✅ "' + transcript + '"';
+            isRecording = false;
+            micBtn.style.background = '#f0f0f0';
+            micBtn.textContent = '🎤';
+        };
+
+        recognition.onerror = function() {
+            status.textContent = '❌ Autorise le micro !';
+            isRecording = false;
+            micBtn.style.background = '#f0f0f0';
+            micBtn.textContent = '🎤';
+        };
+    } else {
+        micBtn.disabled = true;
+        micBtn.style.opacity = '0.5';
+    }
+
+    // Envoyer avec la flèche
+    sendBtn.onclick = function() {
+        if (chatInput.value.trim()) {
+            const streamlitInput = window.parent.document.querySelector('input[data-testid="stChatInput"]');
+            if (streamlitInput) {
+                streamlitInput.value = chatInput.value;
+                streamlitInput.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Simuler Enter
+                const enterEvent = new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    bubbles: true
+                });
+                streamlitInput.dispatchEvent(enterEvent);
+            }
+            chatInput.value = '';
         }
     };
 
-    recognition.onerror = function(event) {
-        status.textContent = '❌ Erreur : Autorise le micro dans ton navigateur !';
-        status.style.color = '#e74c3c';
-        voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    // Envoyer avec Enter
+    chatInput.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+            sendBtn.click();
+        }
     };
-
-    recognition.onend = function() {
-        voiceBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-    };
-} else {
-    status.textContent = '❌ Utilise Chrome, Edge ou Safari pour le micro !';
-    status.style.color = '#e74c3c';
-    voiceBtn.disabled = true;
-}
-</script>
-"""
-
-st.components.v1.html(voice_html, height=180)
-
-# Zone de saisie partagée
-user_input = st.text_input("", key="shared_input", placeholder="Tu peux aussi écrire ici...", label_visibility="collapsed")
-
-# Deux boutons : un pour vocal, un pour texte
-col1, col2 = st.columns(2)
-
-with col1:
-    voice_button = st.button("🎤 Envoyer en mode vocal")
-
-with col2:
-    text_button = st.button("✍️ Envoyer en mode texte")
-
-# Traitement mode vocal
-if voice_button and user_input:
-    with st.spinner("🤔 Amalia réfléchit..."):
-        answer = get_amalia_response(user_input)
-        st.session_state.history.append({"user": user_input, "assistant": answer, "mode": "voice"})
-        
-        st.success(f"**🎤 Tu as dit :** {user_input}")
-        st.info(f"**🤖 Amalia répond :** {answer}")
-        
-        # Lecture vocale automatique
-        speech_html = f"""
-        <script>
-        const text = `{answer.replace('`', '').replace('"', '\\"').replace("'", "\\'")}`;
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'fr-FR';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.1;
-        window.speechSynthesis.speak(utterance);
-        </script>
-        """
-        st.components.v1.html(speech_html, height=0)
-
-# Traitement mode texte
-if text_button and user_input:
-    with st.spinner("🤔 Amalia réfléchit..."):
-        answer = get_amalia_response(user_input)
-        st.session_state.history.append({"user": user_input, "assistant": answer, "mode": "text"})
-        
-        st.success("**✍️ Ta question :**")
-        st.write(user_input)
-        st.info("**🤖 Réponse d'Amalia :**")
-        st.write(answer)
-
-# Historique
-if st.session_state.history:
-    st.markdown("---")
-    st.markdown("### 📜 Historique des conversations")
+    </script>
+    """
     
-    for idx, msg in enumerate(reversed(st.session_state.history[-5:])):
-        mode_icon = "🎤" if msg.get("mode") == "voice" else "✍️"
-        with st.expander(f"{mode_icon} Conversation {len(st.session_state.history) - idx}"):
-            st.markdown(f"**👤 Toi :** {msg['user']}")
-            st.markdown(f"**🤖 Amalia :** {msg['assistant']}")
+    st.components.v1.html(chat_html, height=120)
+
+# Input Streamlit caché (pour récupérer le message)
+if prompt := st.chat_input("Message...", key="hidden_input"):
+    # Ajouter le message utilisateur
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    with st.chat_message("user"):
+        st.write(prompt)
+    
+    # Obtenir et afficher la réponse
+    with st.chat_message("assistant"):
+        with st.spinner("Réflexion..."):
+            response = get_amalia_response(prompt)
+            st.write(response)
             
-            # Bouton pour réécouter
-            replay_html = f"""
-            <button onclick="
-                const text = `{msg['assistant'].replace('`', '').replace('"', '\\"').replace("'", "\\'")}`;
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'fr-FR';
-                window.speechSynthesis.speak(utterance);
-            " style="
-                background: #3498db;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 5px;
-                cursor: pointer;
-            ">🔊 Réécouter</button>
+            # Réponse vocale si le message vient du micro
+            speech_html = f"""
+            <script>
+            const text = `{response.replace('`', '').replace('"', '\\"').replace("'", "\\'")}`;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'fr-FR';
+            window.speechSynthesis.speak(utterance);
+            </script>
             """
-            st.components.v1.html(replay_html, height=50, key=f"replay_{idx}")
+            st.components.v1.html(speech_html, height=0)
     
-    if st.button("🗑️ Effacer l'historique"):
-        st.session_state.history = []
-        st.rerun()
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.rerun()
+
 
 
 
