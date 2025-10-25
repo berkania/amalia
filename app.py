@@ -3,6 +3,70 @@ import requests
 from datetime import datetime
 import sqlite3
 import bcrypt
+import html
+
+# Fonction pour obtenir la connexion DB (déplacée au début pour éviter NameError)
+def get_db_connection():
+    conn = sqlite3.connect('db/users.db', check_same_thread=False)
+    c = conn.cursor()
+    # Tables utilisateurs, chats, messages
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL
+            )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS chats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                created_at TEXT
+            )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER,
+                sender TEXT,
+                content TEXT,
+                timestamp TEXT
+            )''')
+    conn.commit()
+    return conn
+
+# Fonctions pour la persistance des chats et messages
+def save_chat(username, chat_id, chat_data):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("INSERT INTO chats (username, created_at) VALUES (?, ?)", (username, chat_data["created"]))
+    chat_db_id = c.lastrowid
+    for msg in chat_data["messages"]:
+        c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
+                  (chat_db_id, msg["role"], msg["content"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
+    return chat_db_id
+
+def load_chats(username):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, created_at FROM chats WHERE username=?", (username,))
+    chats_db = c.fetchall()
+    chats = {}
+    for chat_db_id, created_at in chats_db:
+        c.execute("SELECT sender, content, timestamp FROM messages WHERE chat_id=? ORDER BY timestamp", (chat_db_id,))
+        messages = [{"role": row[0], "content": row[1]} for row in c.fetchall()]
+        chat_id = f"chat_{chat_db_id}"
+        chats[chat_id] = {
+            "name": "Nouveau Chat" if not messages else messages[0]["content"][:30] + "..." if len(messages[0]["content"]) > 30 else messages[0]["content"],
+            "messages": messages,
+            "created": created_at
+        }
+    conn.close()
+    return chats
+
+def save_message(chat_id, sender, content):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
+              (chat_id, sender, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
 
 st.set_page_config(
     page_title="Amalia - Assistant IA",
@@ -10,6 +74,7 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded"
 )
+
 if "logged_user" not in st.session_state:
     st.session_state.logged_user = None
 if "logged_in" not in st.session_state:
@@ -45,7 +110,20 @@ if not st.session_state.logged_in:
         if validate_user(username, password):
             st.session_state.logged_user = username
             st.session_state.logged_in = True
-            st.experimental_rerun()
+            # Charger les chats depuis la DB
+            st.session_state.chats = load_chats(username)
+            if not st.session_state.chats:
+                # Créer un premier chat si aucun
+                chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.session_state.current_chat_id = chat_id
+                st.session_state.chats[chat_id] = {
+                    "name": "Nouveau Chat",
+                    "messages": [],
+                    "created": datetime.now().strftime("%d/%m/%Y %H:%M")
+                }
+            else:
+                st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
+            st.rerun()
         else:
             st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
 
@@ -63,8 +141,7 @@ else:
     if st.sidebar.button("Déconnexion"):
         st.session_state.logged_user = None
         st.session_state.logged_in = False
-        st.experimental_rerun()
-
+        st.rerun()
 
 # CSS professionnel avec texte NOIR
 st.markdown("""
@@ -109,12 +186,11 @@ st.markdown("""
 
 st.title("🤖 Amalia")
 
-# Initialisation de la session
+# Initialisation de la session (chargée depuis DB si connecté)
 if "chats" not in st.session_state:
     st.session_state.chats = {}
-    
 if "current_chat_id" not in st.session_state:
-    # Créer un premier chat
+    # Créer un premier chat si aucun chargé
     chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.session_state.current_chat_id = chat_id
     st.session_state.chats[chat_id] = {
@@ -122,28 +198,6 @@ if "current_chat_id" not in st.session_state:
         "messages": [],
         "created": datetime.now().strftime("%d/%m/%Y %H:%M")
     }
-def get_db_connection():
-    conn = sqlite3.connect('db/users.db', check_same_thread=False)
-    c = conn.cursor()
-    # Tables utilisateurs, chats, messages
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT NOT NULL
-            )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS chats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT,
-                created_at TEXT
-            )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id INTEGER,
-                sender TEXT,
-                content TEXT,
-                timestamp TEXT
-            )''')
-    conn.commit()
-    return conn
 
 # Fonction pour obtenir la réponse
 def get_response(user_input, chat_id):
@@ -305,6 +359,8 @@ with col1:
             micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
             micBtn.textContent = '🎤';
         };
+    } else {
+        status.textContent = 'Non supporté';
     }
     </script>
     """
@@ -315,6 +371,7 @@ with col2:
     if prompt := st.chat_input("Message Amalia..."):
         # Ajouter message utilisateur
         current_chat["messages"].append({"role": "user", "content": prompt})
+        save_message(st.session_state.current_chat_id, "user", prompt)  # Sauvegarder dans DB
         
         # Afficher message utilisateur
         with st.chat_message("user"):
@@ -326,25 +383,30 @@ with col2:
                 response = get_response(prompt, st.session_state.current_chat_id)
                 st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
         
-        # Ajouter réponse à l'historique
+        # Ajouter réponse à l'historique et sauvegarder
         current_chat["messages"].append({"role": "assistant", "content": response})
+        save_message(st.session_state.current_chat_id, "assistant", response)
         
         # Synthèse vocale si mode vocal
+        escaped_response = html.escape(response)
         check_voice_html = f"""
         <script>
         const voiceMode = window.parent.sessionStorage.getItem('voiceMode');
         if (voiceMode === 'true') {{
             window.parent.sessionStorage.removeItem('voiceMode');
-            const response = `{response.replace('`', '').replace('"', '\\"').replace("'", "\\'")}`;
-            const utterance = new SpeechSynthesisUtterance(response);
-            utterance.lang = 'fr-FR';
-            window.speechSynthesis.speak(utterance);
+            const response = `{escaped_response}`;
+            if ('speechSynthesis' in window) {{
+                const utterance = new SpeechSynthesisUtterance(response);
+                utterance.lang = 'fr-FR';
+                window.speechSynthesis.speak(utterance);
+            }}
         }}
         </script>
         """
         st.components.v1.html(check_voice_html, height=0)
         
         st.rerun()
+
 
 
 
