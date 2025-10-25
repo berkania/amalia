@@ -461,4 +461,24 @@ with col2:
         
         # Ajouter réponse à l'historique et sauvegarder
         current_chat["messages"].append({"role": "assistant", "content": response})
-        save_message(st.session_state.current_chat_id,
+        save_message(st.session_state.current_chat_id, "assistant", response)
+        
+        # Synthèse vocale si mode vocal
+        escaped_response = html.escape(response)
+        check_voice_html = f"""
+        <script>
+        const voiceMode = window.parent.sessionStorage.getItem('voiceMode');
+        if (voiceMode === 'true') {{
+            window.parent.sessionStorage.removeItem('voiceMode');
+            const response = `{escaped_response}`;
+            if ('speechSynthesis' in window) {{
+                const utterance = new SpeechSynthesisUtterance(response);
+                utterance.lang = 'fr-FR';
+                window.speechSynthesis.speak(utterance);
+            }}
+        }}
+        </script>
+        """
+        st.components.v1.html(check_voice_html, height=0)
+        
+        st.rer
