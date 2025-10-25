@@ -37,18 +37,17 @@ def get_db_connection():
     return conn
 
 # Fonctions pour la persistance des chats et messages
-def save_chat(username, chat_id, chat_data):
+def save_chat(username, chat_data):
     try:
         conn = get_db_connection()
         c = conn.cursor()
         c.execute("INSERT INTO chats (username, created_at) VALUES (?, ?)", (username, chat_data["created"]))
         chat_db_id = c.lastrowid
-        for msg in chat_data["messages"]:
-            c.execute("INSERT INTO messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
-                      (chat_db_id, msg["role"], msg["content"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
+        return chat_db_id  # Retourne l'ID DB pour l'utiliser comme clé
     except Exception as e:
         logging.error(f"Erreur lors de la sauvegarde du chat : {e}")
+        return None
     finally:
         conn.close()
 
@@ -62,8 +61,7 @@ def load_chats(username):
         for chat_db_id, created_at in chats_db:
             c.execute("SELECT sender, content, timestamp FROM messages WHERE chat_id=? ORDER BY timestamp", (chat_db_id,))
             messages = [{"role": row[0], "content": row[1]} for row in c.fetchall()]
-            chat_id = f"chat_{chat_db_id}"
-            chats[chat_id] = {
+            chats[str(chat_db_id)] = {  # Utilise l'ID DB comme clé
                 "name": "Nouveau Chat" if not messages else messages[0]["content"][:30] + "..." if len(messages[0]["content"]) > 30 else messages[0]["content"],
                 "messages": messages,
                 "created": created_at
@@ -73,6 +71,18 @@ def load_chats(username):
     finally:
         conn.close()
     return chats
+
+def delete_chat(chat_id):
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("DELETE FROM messages WHERE chat_id=?", (chat_id,))
+        c.execute("DELETE FROM chats WHERE id=?", (chat_id,))
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Erreur lors de la suppression du chat : {e}")
+    finally:
+        conn.close()
 
 def save_message(chat_id, sender, content):
     try:
@@ -166,13 +176,15 @@ if not st.session_state.logged_in:
                 st.session_state.chats = load_chats(username)
                 if not st.session_state.chats:
                     # Créer un premier chat si aucun
-                    chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    st.session_state.current_chat_id = chat_id
-                    st.session_state.chats[chat_id] = {
+                    chat_data = {
                         "name": "Nouveau Chat",
                         "messages": [],
                         "created": datetime.now().strftime("%d/%m/%Y %H:%M")
                     }
+                    chat_db_id = save_chat(username, chat_data)
+                    if chat_db_id:
+                        st.session_state.chats[str(chat_db_id)] = chat_data
+                        st.session_state.current_chat_id = str(chat_db_id)
                 else:
                     st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
                 st.rerun()
@@ -250,13 +262,15 @@ if "chats" not in st.session_state:
     st.session_state.chats = {}
 if "current_chat_id" not in st.session_state:
     # Créer un premier chat si aucun chargé
-    chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    st.session_state.current_chat_id = chat_id
-    st.session_state.chats[chat_id] = {
+    chat_data = {
         "name": "Nouveau Chat",
         "messages": [],
         "created": datetime.now().strftime("%d/%m/%Y %H:%M")
     }
+    chat_db_id = save_chat(st.session_state.logged_user, chat_data)
+    if chat_db_id:
+        st.session_state.chats[str(chat_db_id)] = chat_data
+        st.session_state.current_chat_id = str(chat_db_id)
 
 # Fonction pour obtenir la réponse
 def get_response(user_input, chat_id):
@@ -300,14 +314,16 @@ with st.sidebar:
     
     # Bouton + Nouveau Chat
     if st.button("➕ Nouveau Chat", use_container_width=True, type="primary"):
-        new_chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        st.session_state.chats[new_chat_id] = {
+        chat_data = {
             "name": "Nouveau Chat",
             "messages": [],
             "created": datetime.now().strftime("%d/%m/%Y %H:%M")
         }
-        st.session_state.current_chat_id = new_chat_id
-        st.rerun()
+        chat_db_id = save_chat(st.session_state.logged_user, chat_data)
+        if chat_db_id:
+            st.session_state.chats[str(chat_db_id)] = chat_data
+            st.session_state.current_chat_id = str(chat_db_id)
+            st.rerun()
     
     st.markdown("---")
     
@@ -344,6 +360,7 @@ with st.sidebar:
             # Bouton supprimer
             if st.button("🗑️", key=f"del_{chat_id}"):
                 if len(st.session_state.chats) > 1:
+                    delete_chat(chat_id)  # Supprimer de la DB
                     del st.session_state.chats[chat_id]
                     if st.session_state.current_chat_id == chat_id:
                         st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
@@ -444,24 +461,4 @@ with col2:
         
         # Ajouter réponse à l'historique et sauvegarder
         current_chat["messages"].append({"role": "assistant", "content": response})
-        save_message(st.session_state.current_chat_id, "assistant", response)
-        
-        # Synthèse vocale si mode vocal
-        escaped_response = html.escape(response)
-        check_voice_html = f"""
-        <script>
-        const voiceMode = window.parent.sessionStorage.getItem('voiceMode');
-        if (voiceMode === 'true') {{
-            window.parent.sessionStorage.removeItem('voiceMode');
-            const response = `{escaped_response}`;
-            if ('speechSynthesis' in window) {{
-                const utterance = new SpeechSynthesisUtterance(response);
-                utterance.lang = 'fr-FR';
-                window.speechSynthesis.speak(utterance);
-            }}
-        }}
-        </script>
-        """
-        st.components.v1.html(check_voice_html, height=0)
-        
-        st.rerun()
+        save_message(st.session_state.current_chat_id,
