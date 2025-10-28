@@ -1,11 +1,12 @@
 import streamlit as st
 import requests
 from datetime import datetime
-import sqlite3
-import bcrypt
+import bcrypt  # (utile uniquement si tu en as besoin ailleurs, sinon optionnel)
 import html
-import os
 import logging
+
+# Import des fonctions d'utilisateurs depuis auth.py (ou users.py selon où tu les as mises)
+from auth import add_user, validate_user, list_users
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
@@ -482,5 +483,6 @@ with col2:
         st.components.v1.html(check_voice_html, height=0)
         
         st.rerun()
+
 
 
