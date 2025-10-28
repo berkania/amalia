@@ -5,7 +5,6 @@ from datetime import datetime
 import html
 import logging
 
-supabase: Client = create_client(url, key)
 
 
 # Configuration du logging pour les erreurs
@@ -470,6 +469,7 @@ with col2:
         st.components.v1.html(check_voice_html, height=0)
         
         st.rerun()
+
 
 
 
