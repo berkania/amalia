@@ -1,46 +1,33 @@
-import sqlite3
+from supabase import create_client, Client
 import bcrypt
 
-DB_PATH = "db/users.db"
-
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        password TEXT NOT NULL
-    )''')
-    conn.commit()
-    return conn
+# Configure tes clés/fichier secrets ici
+url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
+supabase: Client = create_client(url, key)
 
 def add_user(username, password):
-    conn = get_db_connection()
-    c = conn.cursor()
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-    try:
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False  # utilisateur déjà existant
-    conn.close()
-    return True
+    # Hash le mot de passe avant insertion
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    # Tente d'insérer l'utilisateur
+    res = supabase.table('users').insert({"username": username, "password": hashed}).execute()
+    # Si erreur car utilisateur déjà existant, renvoie False
+    if res.status_code == 409:
+        return False
+    return res.status_code == 201
 
 def validate_user(username, password):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT password FROM users WHERE username = ?", (username,))
-    row = c.fetchone()
-    conn.close()
-    if row and bcrypt.checkpw(password.encode(), row[0]):
-        return True
+    # Récupère le hash associé au username
+    result = supabase.table('users').select("password").eq("username", username).execute()
+    data = result.data
+    if data:
+        hashed = data[0]["password"].encode()
+        return bcrypt.checkpw(password.encode(), hashed)
     return False
 
 def list_users():
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT username FROM users")
-    users = [row[0] for row in c.fetchall()]
-    conn.close()
-    return users
-
+    # Liste tous les utilisateurs
+    res = supabase.table('users').select("username").execute()
+    if res.data:
+        return [row["username"] for row in res.data]
+    return []
