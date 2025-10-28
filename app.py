@@ -1,14 +1,9 @@
-import streamlit as st
 from auth import add_user, validate_user, list_users
+import streamlit as st
 import requests
 from datetime import datetime
 import html
 import logging
-
-from supabase import create_client, Client
-
-url = "https://eyffbmbmwdhrzzcboawu.supabase.co"  # Ton API URL projet
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"  # Ta anon key
 
 supabase: Client = create_client(url, key)
 
@@ -475,6 +470,7 @@ with col2:
         st.components.v1.html(check_voice_html, height=0)
         
         st.rerun()
+
 
 
 
