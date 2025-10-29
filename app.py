@@ -27,9 +27,10 @@ def save_chat(username, chat_data):
             return res.data[0]["id"]  # Retourne l'ID du chat créé
         else:
             logging.error("Erreur lors de la sauvegarde du chat : pas de données retournées")
+            return None
     except Exception as e:
         logging.error(f"Erreur save_chat: {e}")
-    return None
+        return None
 
 def load_chats(username):
     try:
@@ -44,7 +45,7 @@ def load_chats(username):
         return chats
     except Exception as e:
         logging.error(f"Erreur load_chats: {e}")
-    return {}
+        return {}
 
 def delete_chat(chat_id):
     try:
@@ -120,6 +121,12 @@ if not st.session_state.logged_in:
                     if chat_db_id:
                         st.session_state.chats[str(chat_db_id)] = chat_data
                         st.session_state.current_chat_id = str(chat_db_id)
+                    else:
+                        # Fallback local si DB échoue
+                        local_id = "local_1"
+                        st.session_state.chats[local_id] = chat_data
+                        st.session_state.current_chat_id = local_id
+                        st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase. Les chats sont temporaires.")
                 else:
                     st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
             else:
@@ -150,6 +157,12 @@ if not st.session_state.chats or st.session_state.current_chat_id not in st.sess
     if chat_db_id:
         st.session_state.chats[str(chat_db_id)] = chat_data
         st.session_state.current_chat_id = str(chat_db_id)
+    else:
+        # Fallback local
+        local_id = f"local_{len(st.session_state.chats) + 1}"
+        st.session_state.chats[local_id] = chat_data
+        st.session_state.current_chat_id = local_id
+        st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase. Les chats sont temporaires.")
 
 st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
 if st.sidebar.button("Déconnexion", key="logout_btn"):
@@ -253,6 +266,11 @@ with st.sidebar:
         if chat_db_id:
             st.session_state.chats[str(chat_db_id)] = chat_data
             st.session_state.current_chat_id = str(chat_db_id)
+        else:
+            # Fallback local
+            local_id = f"local_{len(st.session_state.chats) + 1}"
+            st.session_state.chats[local_id] = chat_data
+            st.session_state.current_chat_id = local_id
     
     st.markdown("---")
     
@@ -393,25 +411,6 @@ with col2:
                     response = get_response(prompt, st.session_state.current_chat_id)
                     st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
             
-            # Ajouter réponse à l'historique et sauvegarder
-            current_chat["messages"].append({"role": "assistant", "content": response})
-            save_message(st.session_state.current_chat_id, "assistant", response)
-            
-            # Synthèse vocale si mode vocal
-            escaped_response = html.escape(response)
-            check_voice_html = f"""
-            <script>
-            const voiceMode = window.parent.sessionStorage.getItem('voiceMode');
-            if (voiceMode === 'true') {{
-                window.parent.sessionStorage.removeItem('voiceMode');
-                const response = `{escaped_response}`;
-                if ('speechSynthesis' in window) {{
-                    const utterance = new SpeechSynthesisUtterance(response);
-                    utterance.lang = 'fr-FR';
-                    window.speechSynthesis.speak(utterance);
-                }}
-            }}
-            </script>
-            """
-            st.components.v1.html(check_voice_html, height=0)
+            # Ajouter réponse à l
+
 
