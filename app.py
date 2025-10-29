@@ -16,13 +16,16 @@ supabase: Client = create_client(url, key)
 
 # Fonctions de persistance avec Supabase
 def save_chat(username, chat_data):
+    
     try:
+        st.write("🔹 Sauvegarde chat :", chat_data)  # AJOUT
         res = supabase.table("chats").insert({
             "username": username,
             "name": chat_data["name"],
             "messages": chat_data["messages"],
             "created": chat_data["created"]
         }).execute()
+        st.write("🔹 Résultat Supabase :", res.data, res.error)
         if res.data:
             return res.data[0]["id"]  # Retourne l'ID du chat créé
         else:
@@ -448,5 +451,6 @@ with col2:
             
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
+
 
 
