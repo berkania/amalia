@@ -377,7 +377,58 @@ with col1:
     const micBtn = document.getElementById('micBtn');
     const status = document.getElementById('status');
 
-    if
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'fr-FR';
+
+        micBtn.onclick = function() {
+            recognition.start();
+            micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
+            micBtn.textContent = '⏺️';
+            status.textContent = 'Écoute...';
+        };
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+            micBtn.textContent = '🎤';
+            status.textContent = '✓';
+            
+            const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+            if (chatInput) {
+                chatInput.value = transcript;
+                chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                window.parent.sessionStorage.setItem('voiceMode', 'true');
+            }
+        };
+
+        recognition.onerror = function() {
+            status.textContent = '❌';
+            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+            micBtn.textContent = '🎤';
+        };
+    } else {
+        status.textContent = 'Non supporté';
+    }
+    </script>
+    """
+    st.components.v1.html(mic_html, height=80)
+
+with col2:
+    # Input de chat
+    if prompt := st.chat_input("Message Amalia..."):
+        # Vérifier que le chat existe avant d'ajouter
+        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+            current_chat = st.session_state.chats[st.session_state.current_chat_id]
+            
+            # Ajouter message utilisateur
+            current_chat["messages"].append({"role": "user", "content": prompt})
+            save_message(st.session_state.current_chat_id, "user", prompt)  # Sauvegarder dans DB
+            
+            # Afficher message utilisateur
+            with st.chat_message("user"):
+                st.markdown(f'<div style="color
 
 
 
