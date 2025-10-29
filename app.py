@@ -31,34 +31,39 @@ def save_chat(username, chat_data):
     except Exception as e:
         logging.error(f"Erreur save_chat: {e}")
         return None
-
 def load_chats(username):
     try:
-        # Charger les chats depuis la table chats
+        # Charger tous les chats de l'utilisateur
         res_chats = supabase.table("chats").select("*").eq("username", username).execute()
         chats = {}
+        chat_ids = []
+
         for row in res_chats.data:
             chat_id = str(row["id"])
+            chat_ids.append(chat_id)
             chats[chat_id] = {
                 "name": row["name"],
-                "messages": [],  # Initialiser vide, on va charger les messages séparément
+                "messages": [],
                 "created": row["created"]
             }
-        
-        # Charger les messages depuis la table messages et les associer aux chats
-        res_messages = supabase.table("messages").select("*").eq("chat_id", list(chats.keys())).execute()
-        for msg in res_messages.data:
-            chat_id = str(msg["chat_id"])
-            if chat_id in chats:
-                chats[chat_id]["messages"].append({
-                    "role": msg["sender"],  # "user" ou "assistant"
-                    "content": msg["content"]
-                })
-        
-        # Trier les messages par timestamp si nécessaire (optionnel)
-        for chat_id in chats:
-            chats[chat_id]["messages"].sort(key=lambda x: x.get("timestamp", ""), reverse=False)
-        
+
+        # Charger les messages associés à ces chats
+        if chat_ids:
+            res_messages = supabase.table("messages").select("*").in_("chat_id", chat_ids).execute()
+
+            for msg in res_messages.data:
+                chat_id = str(msg["chat_id"])
+                if chat_id in chats:
+                    chats[chat_id]["messages"].append({
+                        "role": msg["sender"],
+                        "content": msg["content"],
+                        "timestamp": msg.get("timestamp", "")
+                    })
+
+            # Trier les messages par ordre chronologique
+            for chat_id in chats:
+                chats[chat_id]["messages"].sort(key=lambda x: x.get("timestamp", ""))
+
         return chats
     except Exception as e:
         logging.error(f"Erreur load_chats: {e}")
@@ -443,4 +448,5 @@ with col2:
             
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
+
 
