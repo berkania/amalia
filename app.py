@@ -292,8 +292,12 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📊 Stats")
     st.metric("Total chats", len(st.session_state.chats))
-    current_chat = st.session_state.chats[st.session_state.current_chat_id]
-    st.metric("Messages", len(current_chat["messages"]))
+    # Vérification de sécurité avant d'accéder à current_chat
+    if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+        current_chat = st.session_state.chats[st.session_state.current_chat_id]
+        st.metric("Messages", len(current_chat["messages"]))
+    else:
+        st.metric("Messages", 0)
 
 # Afficher les messages (avec vérification de sécurité)
 if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
@@ -410,3 +414,4 @@ with col2:
             </script>
             """
             st.components.v1.html(check_voice_html, height=0)
+
