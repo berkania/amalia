@@ -428,8 +428,19 @@ with col2:
             
             # Afficher message utilisateur
             with st.chat_message("user"):
-                st.markdown(f'<div style="color
-
-
-
+                st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
+            
+            # Obtenir la réponse de l'IA
+            response = get_response(prompt, st.session_state.current_chat_id)
+            
+            # Ajouter le message de l'assistante
+            current_chat["messages"].append({"role": "assistant", "content": response})
+            save_message(st.session_state.current_chat_id, "assistant", response)  # Sauvegarde dans DB
+            
+            # Afficher la réponse d'Amalia
+            with st.chat_message("assistant"):
+                st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
+            
+            # Mise à jour du chat
+            update_chat(st.session_state.current_chat_id, current_chat)
 
