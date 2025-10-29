@@ -139,7 +139,18 @@ if not st.session_state.logged_in:
     
     st.stop()  # Arrête l'app si pas connecté
 
-# Logique après connexion
+# Logique après connexion : Vérifier et créer un chat par défaut si nécessaire
+if not st.session_state.chats or st.session_state.current_chat_id not in st.session_state.chats:
+    chat_data = {
+        "name": "Nouveau Chat",
+        "messages": [],
+        "created": datetime.now().strftime("%d/%m/%Y %H:%M")
+    }
+    chat_db_id = save_chat(st.session_state.logged_user, chat_data)
+    if chat_db_id:
+        st.session_state.chats[str(chat_db_id)] = chat_data
+        st.session_state.current_chat_id = str(chat_db_id)
+
 st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
 if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.logged_user = None
@@ -191,18 +202,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🤖 Amalia")
-
-# Créer un chat par défaut si aucun
-if not st.session_state.chats:
-    chat_data = {
-        "name": "Nouveau Chat",
-        "messages": [],
-        "created": datetime.now().strftime("%d/%m/%Y %H:%M")
-    }
-    chat_db_id = save_chat(st.session_state.logged_user, chat_data)
-    if chat_db_id:
-        st.session_state.chats[str(chat_db_id)] = chat_data
-        st.session_state.current_chat_id = str(chat_db_id)
 
 # Fonction pour obtenir la réponse
 def get_response(user_input, chat_id):
@@ -296,12 +295,15 @@ with st.sidebar:
     current_chat = st.session_state.chats[st.session_state.current_chat_id]
     st.metric("Messages", len(current_chat["messages"]))
 
-# Afficher les messages
-current_chat = st.session_state.chats[st.session_state.current_chat_id]
-
-for message in current_chat["messages"]:
-    with st.chat_message(message["role"]):
-        st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
+# Afficher les messages (avec vérification de sécurité)
+if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+    current_chat = st.session_state.chats[st.session_state.current_chat_id]
+    
+    for message in current_chat["messages"]:
+        with st.chat_message(message["role"]):
+            st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
+else:
+    st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
 
 # Bouton micro et input
 col1, col2 = st.columns([1, 10])
@@ -369,39 +371,36 @@ with col1:
 with col2:
     # Input de chat
     if prompt := st.chat_input("Message Amalia..."):
-        # Ajouter message utilisateur
-        current_chat["messages"].append({"role": "user", "content": prompt})
-        save_message(st.session_state.current_chat_id, "user", prompt)  # Sauvegarder dans DB
-        
-        # Afficher message utilisateur
-        with st.chat_message("user"):
-            st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
-        
-        # Obtenir réponse
-        with st.chat_message("assistant"):
-            with st.spinner("Amalia réfléchit..."):
-                response = get_response(prompt, st.session_state.current_chat_id)
-                st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
-        
-        # Ajouter réponse à l'historique et sauvegarder
-        current_chat["messages"].append({"role": "assistant", "content": response})
-        save_message(st.session_state.current_chat_id, "assistant", response)
-        
-        # Synthèse vocale si mode vocal
-        escaped_response = html.escape(response)
-        check_voice_html = f"""
-        <script>
-        const voiceMode = window.parent.sessionStorage.getItem('voiceMode');
-        if (voiceMode === 'true') {{
-            window.parent.sessionStorage.removeItem('voiceMode');
-            const response = `{escaped_response}`;
-            if ('speechSynthesis' in window) {{
-                const utterance = new SpeechSynthesisUtterance(response);
-                utterance.lang = 'fr-FR';
-                window.speechSynthesis.speak(utterance);
-            }}
-        }}
-        </script>
-        """
-        st.components.v1.html(check_voice_html, height=0)
-
+        # Vérifier que le chat existe avant d'ajouter
+        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+            current_chat = st.session_state.chats[st.session_state.current_chat_id]
+            
+            # Ajouter message utilisateur
+            current_chat["messages"].append({"role": "user", "content": prompt})
+            save_message(st.session_state.current_chat_id, "user", prompt)  # Sauvegarder dans DB
+            
+            # Afficher message utilisateur
+            with st.chat_message("user"):
+                st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
+            
+            # Obtenir réponse
+            with st.chat_message("assistant"):
+                with st.spinner("Amalia réfléchit..."):
+                    response = get_response(prompt, st.session_state.current_chat_id)
+                    st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
+            
+            # Ajouter réponse à l'historique et sauvegarder
+            current_chat["messages"].append({"role": "assistant", "content": response})
+            save_message(st.session_state.current_chat_id, "assistant", response)
+            
+            # Synthèse vocale si mode vocal
+            escaped_response = html.escape(response)
+            check_voice_html = f"""
+            <script>
+            const voiceMode = window.parent.sessionStorage.getItem('voiceMode');
+            if (voiceMode === 'true') {{
+                window.parent.sessionStorage.removeItem('voiceMode');
+                const response = `{escaped_response}`;
+                if ('speechSynthesis' in window) {{
+                    const utterance = new SpeechSynthesisUtterance(response);
+                    utterance.lang = 'fr
