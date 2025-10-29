@@ -403,4 +403,10 @@ with col2:
                 const response = `{escaped_response}`;
                 if ('speechSynthesis' in window) {{
                     const utterance = new SpeechSynthesisUtterance(response);
-                    utterance.lang = 'fr
+                    utterance.lang = 'fr-FR';
+                    window.speechSynthesis.speak(utterance);
+                }}
+            }}
+            </script>
+            """
+            st.components.v1.html(check_voice_html, height=0)
