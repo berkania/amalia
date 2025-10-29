@@ -34,18 +34,43 @@ def save_chat(username, chat_data):
 
 def load_chats(username):
     try:
-        res = supabase.table("chats").select("*").eq("username", username).execute()
+        # Charger les chats depuis la table chats
+        res_chats = supabase.table("chats").select("*").eq("username", username).execute()
         chats = {}
-        for row in res.data:
-            chats[str(row["id"])] = {
+        for row in res_chats.data:
+            chat_id = str(row["id"])
+            chats[chat_id] = {
                 "name": row["name"],
-                "messages": row["messages"],
+                "messages": [],  # Initialiser vide, on va charger les messages séparément
                 "created": row["created"]
             }
+        
+        # Charger les messages depuis la table messages et les associer aux chats
+        res_messages = supabase.table("messages").select("*").eq("chat_id", list(chats.keys())).execute()
+        for msg in res_messages.data:
+            chat_id = str(msg["chat_id"])
+            if chat_id in chats:
+                chats[chat_id]["messages"].append({
+                    "role": msg["sender"],  # "user" ou "assistant"
+                    "content": msg["content"]
+                })
+        
+        # Trier les messages par timestamp si nécessaire (optionnel)
+        for chat_id in chats:
+            chats[chat_id]["messages"].sort(key=lambda x: x.get("timestamp", ""), reverse=False)
+        
         return chats
     except Exception as e:
         logging.error(f"Erreur load_chats: {e}")
         return {}
+
+def update_chat(chat_id, chat_data):
+    try:
+        supabase.table("chats").update({
+            "messages": chat_data["messages"]
+        }).eq("id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"Erreur update_chat: {e}")
 
 def delete_chat(chat_id):
     try:
@@ -352,66 +377,7 @@ with col1:
     const micBtn = document.getElementById('micBtn');
     const status = document.getElementById('status');
 
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'fr-FR';
-
-        micBtn.onclick = function() {
-            recognition.start();
-            micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
-            micBtn.textContent = '⏺️';
-            status.textContent = 'Écoute...';
-        };
-
-        recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-            micBtn.textContent = '🎤';
-            status.textContent = '✓';
-            
-            const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-            if (chatInput) {
-                chatInput.value = transcript;
-                chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-                window.parent.sessionStorage.setItem('voiceMode', 'true');
-            }
-        };
-
-        recognition.onerror = function() {
-            status.textContent = '❌';
-            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-            micBtn.textContent = '🎤';
-        };
-    } else {
-        status.textContent = 'Non supporté';
-    }
-    </script>
-    """
-    st.components.v1.html(mic_html, height=80)
-
-with col2:
-    # Input de chat
-    if prompt := st.chat_input("Message Amalia..."):
-        # Vérifier que le chat existe avant d'ajouter
-        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-            current_chat = st.session_state.chats[st.session_state.current_chat_id]
-            
-            # Ajouter message utilisateur
-            current_chat["messages"].append({"role": "user", "content": prompt})
-            save_message(st.session_state.current_chat_id, "user", prompt)  # Sauvegarder dans DB
-            
-            # Afficher message utilisateur
-            with st.chat_message("user"):
-                st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
-            
-            # Obtenir réponse
-            with st.chat_message("assistant"):
-                with st.spinner("Amalia réfléchit..."):
-                    response = get_response(prompt, st.session_state.current_chat_id)
-                    st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
-            
-            # Ajouter réponse à l
+    if
 
 
 
