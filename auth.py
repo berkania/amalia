@@ -7,29 +7,37 @@ key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiIsInJl
 supabase: Client = create_client(url, key)
 
 def add_user(username, password):
+    import streamlit as st
+
     if not username or not password:
+        st.error("Champs vides")
         return False
 
-    # Vérifie si l'utilisateur existe déjà
     try:
+        # Vérifie si l'utilisateur existe déjà
         existing = supabase.table("users").select("id").eq("username", username).execute()
+        st.write("Résultat de la recherche :", existing.data)
+
         if existing.data and len(existing.data) > 0:
+            st.warning("Nom déjà utilisé")
             return False
-    except Exception as e:
-        print("Erreur lors de la vérification :", e)
-        return False
 
-    # Hash le mot de passe
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        # Hash le mot de passe
+        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    try:
+        # Insertion
         res = supabase.table("users").insert({"username": username, "password": hashed}).execute()
+        st.write("Résultat insertion :", res.data, res.error)
+
         if res.error:
-            print("Erreur d'insertion :", res.error)
+            st.error(f"Erreur Supabase : {res.error}")
             return False
+
+        st.success("Utilisateur ajouté avec succès dans la base")
         return True
+
     except Exception as e:
-        print("Erreur pendant l'insertion :", e)
+        st.error(f"Erreur inattendue : {e}")
         return False
 
 
@@ -53,6 +61,7 @@ def list_users():
     except Exception as e:
         print("Erreur list_users :", e)
     return []
+
 
 
 
