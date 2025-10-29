@@ -4,33 +4,67 @@ import requests
 from datetime import datetime
 import html
 import logging
-
-
+from supabase import create_client, Client
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
 
-# Ici, tu dois coder à part la persistance de chats/messages avec Supabase si besoin.
-# Pour l'instant, on met des placeholders vides pour éviter les erreurs :
+# Configuration Supabase (réutilisez celle de auth.py)
+url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
+supabase: Client = create_client(url, key)
 
+# Fonctions de persistance avec Supabase
 def save_chat(username, chat_data):
-    # TODO: implémenter avec Supabase
+    try:
+        res = supabase.table("chats").insert({
+            "username": username,
+            "name": chat_data["name"],
+            "messages": chat_data["messages"],
+            "created": chat_data["created"]
+        }).execute()
+        if res.data:
+            return res.data[0]["id"]  # Retourne l'ID du chat créé
+        else:
+            logging.error("Erreur lors de la sauvegarde du chat : pas de données retournées")
+    except Exception as e:
+        logging.error(f"Erreur save_chat: {e}")
     return None
 
 def load_chats(username):
-    # TODO: implémenter avec Supabase
+    try:
+        res = supabase.table("chats").select("*").eq("username", username).execute()
+        chats = {}
+        for row in res.data:
+            chats[str(row["id"])] = {
+                "name": row["name"],
+                "messages": row["messages"],
+                "created": row["created"]
+            }
+        return chats
+    except Exception as e:
+        logging.error(f"Erreur load_chats: {e}")
     return {}
 
 def delete_chat(chat_id):
-    # TODO: implémenter avec Supabase
-    pass
+    try:
+        supabase.table("chats").delete().eq("id", chat_id).execute()
+        supabase.table("messages").delete().eq("chat_id", chat_id).execute()  # Supprime aussi les messages
+    except Exception as e:
+        logging.error(f"Erreur delete_chat: {e}")
 
 def save_message(chat_id, sender, content):
-    # TODO: implémenter avec Supabase
-    pass
+    try:
+        supabase.table("messages").insert({
+            "chat_id": chat_id,
+            "sender": sender,
+            "content": content,
+            "timestamp": datetime.now().isoformat()
+        }).execute()
+    except Exception as e:
+        logging.error(f"Erreur save_message: {e}")
 
-# Suite de ton code app sans mot de passe SQLite
-
+# Configuration de la page (une seule fois au début)
 st.set_page_config(
     page_title="Amalia - Assistant IA",
     page_icon="🤖",
@@ -38,7 +72,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialisation de la session
+# Initialisation de la session (une seule fois)
 if "logged_user" not in st.session_state:
     st.session_state.logged_user = None
 if "logged_in" not in st.session_state:
@@ -47,25 +81,30 @@ if "show_login" not in st.session_state:
     st.session_state.show_login = False
 if "show_register" not in st.session_state:
     st.session_state.show_register = False
+if "chats" not in st.session_state:
+    st.session_state.chats = {}
+if "current_chat_id" not in st.session_state:
+    st.session_state.current_chat_id = None
 
+# Logique de connexion/inscription
 if not st.session_state.logged_in:
     st.sidebar.title("Connexion")
     
-    if st.sidebar.button("Se connecter"):
+    # Boutons pour afficher les formulaires (avec clés uniques)
+    if st.sidebar.button("Se connecter", key="show_login_btn"):
         st.session_state.show_login = True
         st.session_state.show_register = False
-        st.rerun()
     
-    if st.sidebar.button("Créer un compte"):
+    if st.sidebar.button("Créer un compte", key="show_register_btn"):
         st.session_state.show_register = True
         st.session_state.show_login = False
-        st.rerun()
     
+    # Formulaire de connexion
     if st.session_state.show_login:
         st.sidebar.subheader("Connexion")
         username = st.sidebar.text_input("Nom d'utilisateur", key="login_username")
         password = st.sidebar.text_input("Mot de passe", type="password", key="login_password")
-        if st.sidebar.button("Valider Connexion"):
+        if st.sidebar.button("Valider Connexion", key="validate_login_btn"):
             if validate_user(username, password):
                 st.session_state.logged_user = username
                 st.session_state.logged_in = True
@@ -83,125 +122,34 @@ if not st.session_state.logged_in:
                         st.session_state.current_chat_id = str(chat_db_id)
                 else:
                     st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
-                st.rerun()
             else:
                 st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
     
+    # Formulaire d'inscription
     if st.session_state.show_register:
         st.sidebar.subheader("Créer un compte")
         new_user = st.sidebar.text_input("Nouveau nom d'utilisateur", key="register_username")
         new_password = st.sidebar.text_input("Nouveau mot de passe", type="password", key="register_password")
-        if st.sidebar.button("Valider Inscription"):
+        if st.sidebar.button("Valider Inscription", key="validate_register_btn"):
             if add_user(new_user, new_password):
                 st.sidebar.success("Compte créé avec succès ! Cliquez sur 'Se connecter' pour vous connecter.")
                 st.session_state.show_register = False
-                st.rerun()
             else:
                 st.sidebar.error("Erreur lors de la création du compte (utilisateur existe déjà ou champs vides).")
     
-    st.stop()
+    st.stop()  # Arrête l'app si pas connecté
 
-else:
-    st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
-    if st.sidebar.button("Déconnexion"):
-        st.session_state.logged_user = None
-        st.session_state.logged_in = False
-        st.session_state.show_login = False
-        st.session_state.show_register = False
-        st.rerun()
-
-# CSS ...
-
-# Suite UI affichage chats/messages et bouton micro stays the same...
-
-# N’oublie pas d’implémenter la persistance des chats/messages avec Supabase !
-
-
-
-st.set_page_config(
-    page_title="Amalia - Assistant IA",
-    page_icon="🤖",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-# Initialisation de la session
-if "logged_user" not in st.session_state:
+# Logique après connexion
+st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
+if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.logged_user = None
-if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "show_login" not in st.session_state:
     st.session_state.show_login = False
-if "show_register" not in st.session_state:
     st.session_state.show_register = False
+    st.session_state.chats = {}
+    st.session_state.current_chat_id = None
 
-if not st.session_state.logged_in:
-    st.sidebar.title("Connexion")
-    
-    # Boutons pour afficher les formulaires
-    if st.sidebar.button("Se connecter"):
-        st.session_state.show_login = True
-        st.session_state.show_register = False
-        st.rerun()
-    
-    if st.sidebar.button("Créer un compte"):
-        st.session_state.show_register = True
-        st.session_state.show_login = False
-        st.rerun()
-    
-    # Formulaire de connexion (affiché seulement si bouton cliqué)
-    if st.session_state.show_login:
-        st.sidebar.subheader("Connexion")
-        username = st.sidebar.text_input("Nom d'utilisateur", key="login_username")
-        password = st.sidebar.text_input("Mot de passe", type="password", key="login_password")
-        if st.sidebar.button("Valider Connexion"):
-            if validate_user(username, password):
-                st.session_state.logged_user = username
-                st.session_state.logged_in = True
-                st.session_state.show_login = False
-                # Charger les chats depuis la DB
-                st.session_state.chats = load_chats(username)
-                if not st.session_state.chats:
-                    # Créer un premier chat si aucun
-                    chat_data = {
-                        "name": "Nouveau Chat",
-                        "messages": [],
-                        "created": datetime.now().strftime("%d/%m/%Y %H:%M")
-                    }
-                    chat_db_id = save_chat(username, chat_data)
-                    if chat_db_id:
-                        st.session_state.chats[str(chat_db_id)] = chat_data
-                        st.session_state.current_chat_id = str(chat_db_id)
-                else:
-                    st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
-                st.rerun()
-            else:
-                st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
-    
-    # Formulaire d'inscription (affiché seulement si bouton cliqué)
-    if st.session_state.show_register:
-        st.sidebar.subheader("Créer un compte")
-        new_user = st.sidebar.text_input("Nouveau nom d'utilisateur", key="register_username")
-        new_password = st.sidebar.text_input("Nouveau mot de passe", type="password", key="register_password")
-        if st.sidebar.button("Valider Inscription"):
-            if add_user(new_user, new_password):
-                st.sidebar.success("Compte créé avec succès ! Cliquez sur 'Se connecter' pour vous connecter.")
-                st.session_state.show_register = False
-                st.rerun()
-            else:
-                st.sidebar.error("Erreur lors de la création du compte (utilisateur existe déjà ou champs vides).")
-    
-    st.stop()  # Stop le reste de l'app si pas connecté
-else:
-    st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
-    if st.sidebar.button("Déconnexion"):
-        st.session_state.logged_user = None
-        st.session_state.logged_in = False
-        st.session_state.show_login = False
-        st.session_state.show_register = False
-        st.rerun()
-
-# CSS professionnel avec texte NOIR
+# CSS
 st.markdown("""
 <style>
     .main {
@@ -244,11 +192,8 @@ st.markdown("""
 
 st.title("🤖 Amalia")
 
-# Initialisation de la session (chargée depuis DB si connecté)
-if "chats" not in st.session_state:
-    st.session_state.chats = {}
-if "current_chat_id" not in st.session_state:
-    # Créer un premier chat si aucun chargé
+# Créer un chat par défaut si aucun
+if not st.session_state.chats:
     chat_data = {
         "name": "Nouveau Chat",
         "messages": [],
@@ -299,8 +244,7 @@ def get_response(user_input, chat_id):
 with st.sidebar:
     st.markdown("### 💬 Historique")
     
-    # Bouton + Nouveau Chat
-    if st.button("➕ Nouveau Chat", use_container_width=True, type="primary"):
+    if st.button("➕ Nouveau Chat", key="new_chat_btn", use_container_width=True, type="primary"):
         chat_data = {
             "name": "Nouveau Chat",
             "messages": [],
@@ -310,11 +254,9 @@ with st.sidebar:
         if chat_db_id:
             st.session_state.chats[str(chat_db_id)] = chat_data
             st.session_state.current_chat_id = str(chat_db_id)
-            st.rerun()
     
     st.markdown("---")
     
-    # Liste des chats (les plus récents en premier)
     sorted_chats = sorted(
         st.session_state.chats.items(),
         key=lambda x: x[1]["created"],
@@ -322,14 +264,12 @@ with st.sidebar:
     )
     
     for chat_id, chat_data in sorted_chats:
-        # Définir le nom du chat (premier message ou "Nouveau Chat")
         if len(chat_data["messages"]) > 0:
             first_msg = chat_data["messages"][0]["content"]
             chat_name = first_msg[:30] + "..." if len(first_msg) > 30 else first_msg
         else:
             chat_name = "Nouveau Chat"
         
-        # Bouton pour sélectionner ce chat
         col1, col2 = st.columns([4, 1])
         
         with col1:
@@ -341,17 +281,14 @@ with st.sidebar:
                 type="secondary" if is_active else "tertiary"
             ):
                 st.session_state.current_chat_id = chat_id
-                st.rerun()
         
         with col2:
-            # Bouton supprimer
             if st.button("🗑️", key=f"del_{chat_id}"):
                 if len(st.session_state.chats) > 1:
-                    delete_chat(chat_id)  # Supprimer de la DB
+                    delete_chat(chat_id)
                     del st.session_state.chats[chat_id]
                     if st.session_state.current_chat_id == chat_id:
                         st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
-                    st.rerun()
     
     st.markdown("---")
     st.markdown("### 📊 Stats")
@@ -359,14 +296,14 @@ with st.sidebar:
     current_chat = st.session_state.chats[st.session_state.current_chat_id]
     st.metric("Messages", len(current_chat["messages"]))
 
-# Afficher les messages du chat actuel
+# Afficher les messages
 current_chat = st.session_state.chats[st.session_state.current_chat_id]
 
 for message in current_chat["messages"]:
     with st.chat_message(message["role"]):
         st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
 
-# Bouton micro
+# Bouton micro et input
 col1, col2 = st.columns([1, 10])
 
 with col1:
@@ -467,13 +404,4 @@ with col2:
         </script>
         """
         st.components.v1.html(check_voice_html, height=0)
-        
-        st.rerun()
-
-
-
-
-
-
-
 
