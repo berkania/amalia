@@ -44,23 +44,31 @@ def add_user(username, password):
 
 
 def validate_user(username, password):
+    import streamlit as st
     try:
+        st.write(f"🔍 Vérification de l'utilisateur : {username}")
+
         result = supabase.table("users").select("password").eq("username", username).execute()
+        st.write("Résultat Supabase :", result.data)
 
-        if not result.data or len(result.data) == 0:
-            st.warning("Nom d'utilisateur introuvable.")
-            return False
+        data = result.data
+        if data and len(data) > 0:
+            hashed = data[0]["password"].encode()
+            st.write("Mot de passe chiffré trouvé :", hashed)
 
-        hashed_password = result.data[0]["password"].encode()
-        if bcrypt.checkpw(password.encode(), hashed_password):
-            return True
+            if bcrypt.checkpw(password.encode(), hashed):
+                st.success("✅ Connexion réussie !")
+                return True
+            else:
+                st.error("❌ Mot de passe incorrect.")
+                return False
         else:
-            st.error("Mot de passe incorrect.")
+            st.error("❌ Nom d’utilisateur introuvable.")
             return False
-
     except Exception as e:
         st.error(f"Erreur de connexion : {e}")
         return False
+
 
 
 def list_users():
@@ -73,6 +81,7 @@ def list_users():
     except Exception as e:
         st.error(f"Erreur list_users : {e}")
         return []
+
 
 
 
