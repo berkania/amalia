@@ -1,56 +1,66 @@
 from supabase import create_client, Client
 import bcrypt
+import streamlit as st
 
 # Configuration Supabase
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
 supabase: Client = create_client(url, key)
 
-def add_user(username, password):
-    import streamlit as st
 
+def add_user(username, password):
     if not username or not password:
-        st.error("Champs vides")
+        st.error("Veuillez remplir tous les champs.")
         return False
 
     try:
-        # Vérifie si l'utilisateur existe déjà
+        # Vérifier si l'utilisateur existe déjà
         existing = supabase.table("users").select("id").eq("username", username).execute()
-        st.write("Résultat de la recherche :", existing.data)
 
         if existing.data and len(existing.data) > 0:
-            st.warning("Nom déjà utilisé")
+            st.warning("Nom d'utilisateur déjà utilisé.")
             return False
 
-        # Hash le mot de passe
+        # Hashage du mot de passe
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-        # Insertion
-        res = supabase.table("users").insert({"username": username, "password": hashed}).execute()
-        st.write("Résultat insertion :", res.data, res.error)
+        # Insertion de l'utilisateur
+        response = supabase.table("users").insert({
+            "username": username,
+            "password": hashed
+        }).execute()
 
-        if res.error:
-            st.error(f"Erreur Supabase : {res.error}")
+        # Vérification de l'insertion
+        if not response.data:
+            st.error("Erreur : impossible d’enregistrer l’utilisateur dans la base.")
             return False
 
-        st.success("Utilisateur ajouté avec succès dans la base")
+        st.success("Compte créé avec succès 🎉")
         return True
 
     except Exception as e:
-        st.error(f"Erreur inattendue : {e}")
+        st.error(f"Erreur lors de la création du compte : {e}")
         return False
 
 
 def validate_user(username, password):
     try:
         result = supabase.table("users").select("password").eq("username", username).execute()
-        data = result.data
-        if data and len(data) > 0:
-            hashed = data[0]["password"].encode()
-            return bcrypt.checkpw(password.encode(), hashed)
+
+        if not result.data or len(result.data) == 0:
+            st.warning("Nom d'utilisateur introuvable.")
+            return False
+
+        hashed_password = result.data[0]["password"].encode()
+        if bcrypt.checkpw(password.encode(), hashed_password):
+            return True
+        else:
+            st.error("Mot de passe incorrect.")
+            return False
+
     except Exception as e:
-        print("Erreur de connexion :", e)
-    return False
+        st.error(f"Erreur de connexion : {e}")
+        return False
 
 
 def list_users():
@@ -58,9 +68,12 @@ def list_users():
         res = supabase.table("users").select("username").execute()
         if res.data:
             return [row["username"] for row in res.data]
+        else:
+            return []
     except Exception as e:
-        print("Erreur list_users :", e)
-    return []
+        st.error(f"Erreur list_users : {e}")
+        return []
+
 
 
 
