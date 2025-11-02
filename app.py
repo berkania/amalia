@@ -40,9 +40,7 @@ def save_chat(username, chat_data):
     except Exception as e:
         logging.error(f"Erreur save_chat: {e}")
         return None
-chat_db_id = save_chat(username, chat_data)
-if chat_db_id:
-    st.session_state.chats[str(chat_db_id)] = chat_data
+
 
 def load_chats(username):
     try:
@@ -461,6 +459,7 @@ with col2:
             
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
+
 
 
 
