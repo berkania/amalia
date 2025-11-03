@@ -97,14 +97,17 @@ def delete_chat(chat_id):
 
 def save_message(chat_id, sender, content):
     try:
-        supabase.table("messages").insert({
+        response = supabase.table("messages").insert({
             "chat_id": chat_id,
             "sender": sender,
             "content": content,
-            "timestamp": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat()
         }).execute()
+        print("🔹 Enregistrement message : ", response.data)
+        print("🔹 Erreur Supabase : ", response.error)
     except Exception as e:
-        logging.error(f"Erreur save_message: {e}")
+        print(f"Erreur save_message: {e}")
+
 
 # Configuration de la page (une seule fois au début)
 st.set_page_config(
@@ -459,6 +462,7 @@ with col2:
             
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
+
 
 
 
