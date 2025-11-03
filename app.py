@@ -342,14 +342,40 @@ with st.sidebar:
                 type="secondary" if is_active else "tertiary"
             ):
                 st.session_state.current_chat_id = chat_id
-        
-        with col2:
-            if st.button("🗑️", key=f"del_{chat_id}"):
-                if len(st.session_state.chats) > 1:
-                    delete_chat(chat_id)
-                    del st.session_state.chats[chat_id]
-                    if st.session_state.current_chat_id == chat_id:
-                        st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
+with col2:
+    # Input de chat
+    if prompt := st.chat_input("Message Amalia..."):
+        # Vérifier que le chat existe avant d'ajouter
+        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+            current_chat = st.session_state.chats[st.session_state.current_chat_id]
+            
+            # ==================== AJOUTER MESSAGE UTILISATEUR ====================
+            print(f"💬 Sauvegarde message USER : chat_id={st.session_state.current_chat_id}, contenu={prompt[:50]}")
+            current_chat["messages"].append({"role": "user", "content": prompt})
+            save_message(st.session_state.current_chat_id, "user", prompt)
+            
+            # Afficher message utilisateur
+            with st.chat_message("user"):
+                st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
+            
+            # ==================== OBTENIR REPONSE IA ====================
+            print(f"🤖 Appel get_response pour chat_id={st.session_state.current_chat_id}")
+            response = get_response(prompt, st.session_state.current_chat_id)
+            print(f"🤖 Réponse reçue (premiers 50 chars) : {response[:50]}")
+            
+            # ==================== AJOUTER MESSAGE ASSISTANT ====================
+            print(f"💬 Sauvegarde message ASSISTANT : chat_id={st.session_state.current_chat_id}, contenu={response[:50]}")
+            current_chat["messages"].append({"role": "assistant", "content": response})
+            save_message(st.session_state.current_chat_id, "assistant", response)
+            
+            # Afficher la réponse d'Amalia
+            with st.chat_message("assistant"):
+                st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
+            
+            # ==================== MISE A JOUR CHAT ====================
+            print(f"✅ Mise à jour chat_id={st.session_state.current_chat_id}")
+            update_chat(st.session_state.current_chat_id, current_chat)
+
     
     st.markdown("---")
     st.markdown("### 📊 Stats")
@@ -462,6 +488,7 @@ with col2:
             
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
+
 
 
 
