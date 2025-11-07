@@ -25,17 +25,17 @@ def save_chat(username, chat_data):
         }).execute()
 
         st.write("🔹 Résultat Supabase :", res.data)
-        st.write("🔹 Erreur Supabase :", res.get('error'))  # Correction : utilise .get('error')
+        st.write("🔹 Erreur Supabase :", res.error)  # Correction : utilise .error
 
-        if res.get('error'):
-            st.error(f"Erreur Supabase lors de la sauvegarde : {res['error']}")
+        if res.error:
+            st.error(f"Erreur Supabase lors de la sauvegarde : {res.error}")
             return None
 
-        if not res.get('data'):
+        if not res.data:
             logging.error("Erreur lors de la sauvegarde du chat : pas de données retournées")
             return None
 
-        return res['data'][0]["id"]  # Retourne l'ID du chat créé si succès
+        return res.data[0]["id"]  # Retourne l'ID du chat créé si succès
 
     except Exception as e:
         logging.error(f"Erreur save_chat: {e}")
@@ -49,7 +49,7 @@ def load_chats(username):
         chats = {}
         chat_ids = []
 
-        for row in res_chats['data']:
+        for row in res_chats.data:  # Correction : utilise .data
             chat_id = str(row["id"])
             chat_ids.append(chat_id)
             chats[chat_id] = {
@@ -62,7 +62,7 @@ def load_chats(username):
         if chat_ids:
             res_messages = supabase.table("messages").select("*").in_("chat_id", chat_ids).execute()
 
-            for msg in res_messages['data']:
+            for msg in res_messages.data:  # Correction : utilise .data
                 chat_id = str(msg["chat_id"])
                 if chat_id in chats:
                     chats[chat_id]["messages"].append({
@@ -101,9 +101,9 @@ def save_message(chat_id, sender, content):
             "content": content
         }).execute()
 
-        print("🔹 Message enregistré :", response.get('data'))
-        if response.get('error'):
-            st.error(f"❌ Erreur Supabase lors de la sauvegarde du message : {response['error']}")
+        print("🔹 Message enregistré :", response.data)
+        if response.error:
+            st.error(f"❌ Erreur Supabase lors de la sauvegarde du message : {response.error}")
         else:
             st.success("Message sauvegardé en DB !")  # Pour déboguer
 
@@ -384,9 +384,8 @@ with col2:
     
     st.markdown("---")
     st.markdown("### 📊 Stats")
-    st.metric("Total chats", len(st.session_state.chats))
+    st.metric("    st.metric("Total chats", len(st.session_state.chats))
     # Vérification de sécurité avant d'accéder à current_chat
-        # Vérification de sécurité avant d'accéder à current_chat
     if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
         current_chat = st.session_state.chats[st.session_state.current_chat_id]
         st.metric("Messages", len(current_chat["messages"]))
@@ -493,6 +492,7 @@ with col2:
                 new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
                 current_chat["name"] = new_name
                 update_chat_name(st.session_state.current_chat_id, new_name)
+
 
 
 
