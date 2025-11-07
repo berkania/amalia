@@ -384,7 +384,7 @@ with col2:
     
     st.markdown("---")
     st.markdown("### 📊 Stats")
-    st.metric("    st.metric("Total chats", len(st.session_state.chats))
+    st.metric("Total chats", len(st.session_state.chats))
     # Vérification de sécurité avant d'accéder à current_chat
     if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
         current_chat = st.session_state.chats[st.session_state.current_chat_id]
@@ -492,6 +492,7 @@ with col2:
                 new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
                 current_chat["name"] = new_name
                 update_chat_name(st.session_state.current_chat_id, new_name)
+
 
 
 
