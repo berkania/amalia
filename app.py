@@ -97,21 +97,21 @@ def delete_chat(chat_id):
 
 def save_message(chat_id, sender, content):
     try:
-        # Vérifie si l'ID est numérique avant conversion
-        chat_id_value = int(chat_id) if str(chat_id).isdigit() else None
-
-        if chat_id_value is None:
-            print("⚠️ Aucun ID Supabase valide, message non sauvegardé (chat local).")
+        # Si c’est un chat local (pas enregistré en DB), on ignore
+        if not str(chat_id).isdigit():
+            print(f"⚠️ Chat ID '{chat_id}' n’est pas valide, message non sauvegardé.")
             return
 
+        chat_id = int(chat_id)
         response = supabase.table("messages").insert({
-            "chat_id": chat_id_value,
+            "chat_id": chat_id,
             "sender": sender,
             "content": content
         }).execute()
 
-        print("🔹 Enregistrement message :", response.data)
-        print("🔹 Erreur Supabase :", response.error)
+        print("🔹 Message enregistré :", response.data)
+        if response.error:
+            print("❌ Erreur Supabase :", response.error)
 
     except Exception as e:
         print(f"Erreur save_message: {e}")
@@ -498,6 +498,7 @@ with col2:
             
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
+
 
 
 
