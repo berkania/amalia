@@ -80,14 +80,6 @@ def load_chats(username):
         logging.error(f"Erreur load_chats: {e}")
         return {}
 
-def update_chat(chat_id, chat_data):
-    try:
-        supabase.table("chats").update({
-            "messages": chat_data["messages"]
-        }).eq("id", chat_id).execute()
-    except Exception as e:
-        logging.error(f"Erreur update_chat: {e}")
-
 def delete_chat(chat_id):
     try:
         supabase.table("chats").delete().eq("id", chat_id).execute()
@@ -111,13 +103,19 @@ def save_message(chat_id, sender, content):
 
         print("🔹 Message enregistré :", response.data)
         if response.error:
-            print("❌ Erreur Supabase :", response.error)
+            st.error(f"❌ Erreur Supabase lors de la sauvegarde du message : {response.error}")
+        else:
+            st.success("Message sauvegardé en DB !")  # Pour déboguer
 
     except Exception as e:
-        print(f"Erreur save_message: {e}")
+        st.error(f"Erreur save_message: {e}")
 
-
-
+# Nouvelle fonction pour mettre à jour le nom du chat dans la DB
+def update_chat_name(chat_id, new_name):
+    try:
+        supabase.table("chats").update({"name": new_name}).eq("id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"Erreur update_chat_name: {e}")
 
 # Configuration de la page (une seule fois au début)
 st.set_page_config(
@@ -378,13 +376,9 @@ with col2:
             current_chat["messages"].append({"role": "assistant", "content": response})
             save_message(st.session_state.current_chat_id, "assistant", response)
             
-            # Afficher la réponse d'Amalia
-            with st.chat_message("assistant"):
-                st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
-            
             # ==================== MISE A JOUR CHAT ====================
             print(f"✅ Mise à jour chat_id={st.session_state.current_chat_id}")
-            update_chat(st.session_state.current_chat_id, current_chat)
+            update_chat(chat_id)  # Supprimé car inutile, mais gardé pour compatibilité si tu veux le remettre
 
     
     st.markdown("---")
@@ -414,7 +408,9 @@ with col1:
     mic_html = """
     <div style="margin-top: 8px;">
         <button id="micBtn" style="
-            background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
+            background: linear-gradient(135deg, #10a37f 
+            
+                        background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
             color: white;
             border: none;
             padding: 12px;
@@ -492,16 +488,8 @@ with col2:
             current_chat["messages"].append({"role": "assistant", "content": response})
             save_message(st.session_state.current_chat_id, "assistant", response)  # Sauvegarde dans DB
             
-            # Afficher la réponse d'Amalia
-            with st.chat_message("assistant"):
-                st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
-            
             # Mise à jour du chat
             update_chat(st.session_state.current_chat_id, current_chat)
-
-
-
-
 
 
 
