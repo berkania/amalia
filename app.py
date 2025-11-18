@@ -420,18 +420,17 @@ with col1:
             }
         };
 
-      recognition.onerror = function() {
-    status.textContent = '❌';
-    micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-    micBtn.textContent = '🎤';
-};
-} else {
-    status.textContent = 'Non supporté';
-}
-</script>
-"""
-st.components.v1.html(mic_html, height=80)
-0)
+        recognition.onerror = function() {
+            status.textContent = '❌';
+            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+            micBtn.textContent = '🎤';
+        };
+    } else {
+        status.textContent = 'Non supporté';
+    }
+    </script>
+    """
+    st.components.v1.html(mic_html, height=80)
 
 with col2:
     # Input de chat
@@ -462,11 +461,4 @@ with col2:
                 update_chat_name(st.session_state.current_chat_id, new_name)
             
             st.rerun()  # Force rerun to display the new messages
-
-
-
-
-
-
-
 
