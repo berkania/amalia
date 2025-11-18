@@ -420,17 +420,18 @@ with col1:
             }
         };
 
-        recognition.onerror = function() {
-            status.textContent = '❌';
-            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-            micBtn.textContent = '🎤';
-        };
-    } else {
-        status.textContent = 'Non supporté';
-    }
-    </script>
-    """
-    st.components.v1.html(mic_html, height=80)
+      recognition.onerror = function() {
+    status.textContent = '❌';
+    micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+    micBtn.textContent = '🎤';
+};
+} else {
+    status.textContent = 'Non supporté';
+}
+</script>
+"""
+st.components.v1.html(mic_html, height=80)
+0)
 
 with col2:
     # Input de chat
@@ -451,7 +452,17 @@ with col2:
             response = get_response(prompt, st.session_state.current_chat_id)
             
             # Ajouter le message de l'assistante
-            current
+            current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
+            save_message(st.session_state.current_chat_id, "assistant", response)
+            
+            # Mise à jour du nom du chat si premier message
+            if len(current_chat["messages"]) == 2:  # Premier échange
+                new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
+                current_chat["name"] = new_name
+                update_chat_name(st.session_state.current_chat_id, new_name)
+            
+            st.rerun()  # Force rerun to display the new messages
+
 
 
 
