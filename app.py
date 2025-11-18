@@ -24,9 +24,6 @@ def save_chat(username, chat_data):
             "created": chat_data["created"]
         }).execute()
 
-        st.write("🔹 Résultat Supabase :", res.data)
-        st.write("🔹 Erreur Supabase :", res.error)  # Correction : utilise .error
-
         if res.error:
             st.error(f"Erreur Supabase lors de la sauvegarde : {res.error}")
             return None
@@ -41,7 +38,6 @@ def save_chat(username, chat_data):
         logging.error(f"Erreur save_chat: {e}")
         return None
 
-
 def load_chats(username):
     try:
         # Charger tous les chats de l'utilisateur
@@ -49,7 +45,7 @@ def load_chats(username):
         chats = {}
         chat_ids = []
 
-        for row in res_chats.data:  # Correction : utilise .data
+        for row in res_chats.data:
             chat_id = str(row["id"])
             chat_ids.append(chat_id)
             chats[chat_id] = {
@@ -62,7 +58,7 @@ def load_chats(username):
         if chat_ids:
             res_messages = supabase.table("messages").select("*").in_("chat_id", chat_ids).execute()
 
-            for msg in res_messages.data:  # Correction : utilise .data
+            for msg in res_messages.data:
                 chat_id = str(msg["chat_id"])
                 if chat_id in chats:
                     chats[chat_id]["messages"].append({
@@ -95,17 +91,18 @@ def save_message(chat_id, sender, content):
             return
 
         chat_id = int(chat_id)
+        timestamp = datetime.now().isoformat()
         response = supabase.table("messages").insert({
             "chat_id": chat_id,
             "sender": sender,
-            "content": content
+            "content": content,
+            "timestamp": timestamp
         }).execute()
 
-        print("🔹 Message enregistré :", response.data)
         if response.error:
             st.error(f"❌ Erreur Supabase lors de la sauvegarde du message : {response.error}")
         else:
-            st.success("Message sauvegardé en DB !")  # Pour déboguer
+            print("Message sauvegardé en DB !")  # Pour déboguer, peut être retiré en prod
 
     except Exception as e:
         st.error(f"Erreur save_message: {e}")
@@ -181,6 +178,7 @@ if not st.session_state.logged_in:
                         st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase. Les chats sont temporaires.")
                 else:
                     st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
+                st.rerun()  # Force rerun pour afficher le chat
             else:
                 st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
     
@@ -224,6 +222,7 @@ if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.show_register = False
     st.session_state.chats = {}
     st.session_state.current_chat_id = None
+    st.rerun()
 
 # CSS
 st.markdown("""
@@ -323,6 +322,7 @@ with st.sidebar:
             local_id = f"local_{len(st.session_state.chats) + 1}"
             st.session_state.chats[local_id] = chat_data
             st.session_state.current_chat_id = local_id
+        st.rerun()
     
     st.markdown("---")
     
@@ -339,48 +339,15 @@ with st.sidebar:
         else:
             chat_name = "Nouveau Chat"
         
-        col1, col2 = st.columns([4, 1])
-        
-        with col1:
-            is_active = chat_id == st.session_state.current_chat_id
-            if st.button(
-                f"{'📌' if is_active else '💬'} {chat_name}",
-                key=f"chat_{chat_id}",
-                use_container_width=True,
-                type="secondary" if is_active else "tertiary"
-            ):
-                st.session_state.current_chat_id = chat_id
-with col2:
-    # Input de chat
-    if prompt := st.chat_input("Message Amalia..."):
-        # Vérifier que le chat existe avant d'ajouter
-        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-            current_chat = st.session_state.chats[st.session_state.current_chat_id]
-            
-            # ==================== AJOUTER MESSAGE UTILISATEUR ====================
-            print(f"💬 Sauvegarde message USER : chat_id={st.session_state.current_chat_id}, contenu={prompt[:50]}")
-            current_chat["messages"].append({"role": "user", "content": prompt})
-            save_message(st.session_state.current_chat_id, "user", prompt)
-            
-            # Afficher message utilisateur
-            with st.chat_message("user"):
-                st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
-            
-            # ==================== OBTENIR REPONSE IA ====================
-            print(f"🤖 Appel get_response pour chat_id={st.session_state.current_chat_id}")
-            response = get_response(prompt, st.session_state.current_chat_id)
-            print(f"🤖 Réponse reçue (premiers 50 chars) : {response[:50]}")
-            
-            # ==================== AJOUTER MESSAGE ASSISTANT ====================
-            print(f"💬 Sauvegarde message ASSISTANT : chat_id={st.session_state.current_chat_id}, contenu={response[:50]}")
-            current_chat["messages"].append({"role": "assistant", "content": response})
-            save_message(st.session_state.current_chat_id, "assistant", response)
-            
-            # ==================== MISE A JOUR NOM CHAT SI PREMIER MESSAGE ====================
-            if len(current_chat["messages"]) == 2:  # Premier échange (user + assistant)
-                new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
-                current_chat["name"] = new_name
-                update_chat_name(st.session_state.current_chat_id, new_name)
+        is_active = chat_id == st.session_state.current_chat_id
+        if st.button(
+            f"{'📌' if is_active else '💬'} {chat_name}",
+            key=f"chat_{chat_id}",
+            use_container_width=True,
+            type="secondary" if is_active else "tertiary"
+        ):
+            st.session_state.current_chat_id = chat_id
+            st.rerun()
     
     st.markdown("---")
     st.markdown("### 📊 Stats")
@@ -473,8 +440,8 @@ with col2:
             current_chat = st.session_state.chats[st.session_state.current_chat_id]
             
             # Ajouter message utilisateur
-            current_chat["messages"].append({"role": "user", "content": prompt})
-            save_message(st.session_state.current_chat_id, "user", prompt)  # Sauvegarder dans DB
+            current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
+            save_message(st.session_state.current_chat_id, "user", prompt)
             
             # Afficher message utilisateur
             with st.chat_message("user"):
@@ -484,16 +451,7 @@ with col2:
             response = get_response(prompt, st.session_state.current_chat_id)
             
             # Ajouter le message de l'assistante
-            current_chat["messages"].append({"role": "assistant", "content": response})
-            save_message(st.session_state.current_chat_id, "assistant", response)  # Sauvegarde dans DB
-            
-            # Mise à jour du nom du chat si premier message
-            if len(current_chat["messages"]) == 2:  # Premier échange
-                new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
-                current_chat["name"] = new_name
-                update_chat_name(st.session_state.current_chat_id, new_name)
-
-
+            current
 
 
 
