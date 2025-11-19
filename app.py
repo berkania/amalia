@@ -244,34 +244,34 @@ if st.session_state.show_journal and st.session_state.logged_in:
                         st.rerun()
                     else:
                         st.error("Code incorrect.")
-        else:
+            else:
             # Interface du carnet : éditeur avec pages
-            journal = st.session_state.journal_data
-            st.markdown(f"<h2 style='color: {journal['color']};'>{journal['name']}</h2>", unsafe_allow_html=True)
+                journal = st.session_state.journal_data
+                st.markdown(f"<h2 style='color: {journal['color']};'>{journal['name']}</h2>", unsafe_allow_html=True)
             
-            pages = journal["content"]["pages"]
-            page_options = [f"Page {i+1}: {p['title']}" for i, p in enumerate(pages)]
-            selected_page = st.selectbox("Sélectionnez une page", page_options)
-            page_index = page_options.index(selected_page)
+                pages = journal["content"]["pages"]
+                page_options = [f"Page {i+1}: {p['title']}" for i, p in enumerate(pages)]
+                selected_page = st.selectbox("Sélectionnez une page", page_options)
+                page_index = page_options.index(selected_page)
 
              # Éditeur de la page
-            title = st.text_input("Titre de la page", value=pages[page_index]["title"])
-            content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
+                title = st.text_input("Titre de la page", value=pages[page_index]["title"])
+                content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
             
-            if st.button("Sauvegarder la page"):
-                pages[page_index]["title"] = title
-                pages[page_index]["content"] = content
-                save_journal_content(st.session_state.logged_user, journal["content"])
-                st.success("Page sauvegardée !")
+                if st.button("Sauvegarder la page"):
+                    pages[page_index]["title"] = title
+                    pages[page_index]["content"] = content
+                    save_journal_content(st.session_state.logged_user, journal["content"])
+                    st.success("Page sauvegardée !")
             
-            if st.button("Ajouter une nouvelle page"):
-                pages.append({"title": f"Nouvelle Page {len(pages)+1}", "content": ""})
-                save_journal_content(st.session_state.logged_user, journal["content"])
-                st.rerun()
-    
-    if st.button("Retour au chat"):
-        st.session_state.show_journal = False
-        st.rerun()
+                if st.button("Ajouter une nouvelle page"):
+                    pages.append({"title": f"Nouvelle Page {len(pages)+1}", "content": ""})
+                    save_journal_content(st.session_state.logged_user, journal["content"])
+                    st.rerun()
+        
+        if st.button("Retour au chat"):
+            st.session_state.show_journal = False
+            st.rerun()
 
 
 
@@ -600,6 +600,7 @@ with col2:
                 update_chat_name(st.session_state.current_chat_id, new_name)
             
             st.rerun()  # Force rerun to display the new messages
+
 
 
 
