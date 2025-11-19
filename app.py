@@ -232,18 +232,18 @@ if st.session_state.show_journal and st.session_state.logged_in:
                     st.rerun()
                 else:
                     st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
-    else:
+        else:
         # Carnet existe : demander le code
-        if not st.session_state.journal_accessed:
-            st.subheader("Entrez le code de votre carnet secret")
-            code = st.text_input("Code (chiffres)", type="password")
-            if st.button("Accéder"):
-                if validate_journal_code(st.session_state.logged_user, code):
-                    st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
-                    st.session_state.journal_accessed = True
-                    st.rerun()
-                else:
-                    st.error("Code incorrect.")
+            if not st.session_state.journal_accessed:
+                st.subheader("Entrez le code de votre carnet secret")
+                code = st.text_input("Code (chiffres)", type="password")
+                if st.button("Accéder"):
+                    if validate_journal_code(st.session_state.logged_user, code):
+                        st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
+                        st.session_state.journal_accessed = True
+                        st.rerun()
+                    else:
+                        st.error("Code incorrect.")
         else:
             # Interface du carnet : éditeur avec pages
             journal = st.session_state.journal_data
@@ -600,6 +600,7 @@ with col2:
                 update_chat_name(st.session_state.current_chat_id, new_name)
             
             st.rerun()  # Force rerun to display the new messages
+
 
 
 
