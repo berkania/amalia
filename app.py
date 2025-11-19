@@ -5,7 +5,6 @@ from datetime import datetime
 import html
 import logging
 from supabase import create_client, Client
-
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
 
@@ -600,6 +599,7 @@ with col2:
                 update_chat_name(st.session_state.current_chat_id, new_name)
             
             st.rerun()  # Force rerun to display the new messages
+
 
 
 
