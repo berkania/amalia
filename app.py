@@ -5,6 +5,7 @@ from datetime import datetime
 import html
 import logging
 from supabase import create_client, Client
+
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
 
@@ -121,6 +122,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Initialisation de la session (une seule fois)
 if "logged_user" not in st.session_state:
     st.session_state.logged_user = None
 if "logged_in" not in st.session_state:
@@ -144,135 +146,6 @@ if "create_journal_step" not in st.session_state:
     st.session_state.create_journal_step = 0  # 0: rien, 1: couleur, 2: nom, 3: code
 if "journal_temp" not in st.session_state:
     st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
-# Initialisation de la session (une seule fois)
-if "logged_user" not in st.session_state:
-    st.session_state.logged_user = None
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "show_login" not in st.session_state:
-    st.session_state.show_login = False
-if "show_register" not in st.session_state:
-    st.session_state.show_register = False
-if "chats" not in st.session_state:
-    st.session_state.chats = {}
-if "current_chat_id" not in st.session_state:
-    st.session_state.current_chat_id = None
-
-
-st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
-if st.sidebar.button("Carnet Secret", key="journal_btn"):
-    st.session_state.show_journal = True
-    st.session_state.journal_accessed = False
-    st.session_state.create_journal_step = 0
-    st.rerun()
-if st.sidebar.button("Déconnexion", key="logout_btn"):
-    # (Ton code de déconnexion reste inchangé)
-    st.session_state.logged_user = None
-    st.session_state.logged_in = False
-    st.session_state.show_login = False
-    st.session_state.show_register = False
-    st.session_state.chats = {}
-    st.session_state.current_chat_id = None
-    st.session_state.show_journal = False
-    st.session_state.journal_accessed = False
-    st.session_state.journal_data = None
-    st.session_state.create_journal_step = 0
-    st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
-    st.rerun()
-
-if st.session_state.show_journal and st.session_state.logged_in:
-    st.title("🔒 Carnet Secret")
-    
-    if not has_secret_journal(st.session_state.logged_user):
-        # Pas de carnet : proposer de créer
-        if st.session_state.create_journal_step == 0:
-            if st.button("Créer un nouveau carnet secret"):
-                st.session_state.create_journal_step = 1
-                st.rerun()
-        elif st.session_state.create_journal_step == 1:
-            st.subheader("Étape 1 : Choisissez la couleur de votre espace")
-            color = st.color_picker("Couleur", "#ff0000")
-            if st.button("Suivant"):
-                st.session_state.journal_temp["color"] = color
-                st.session_state.create_journal_step = 2
-                st.rerun()
-        elif st.session_state.create_journal_step == 2:
-            st.subheader("Étape 2 : Donnez un nom à votre carnet")
-            name = st.text_input("Nom du carnet")
-            if st.button("Suivant"):
-                if name:
-                    st.session_state.journal_temp["name"] = name
-                    st.session_state.create_journal_step = 3
-                    st.rerun()
-                else:
-                    st.error("Nom requis.")
-        elif st.session_state.create_journal_step == 3:
-            st.subheader("Étape 3 : Définissez un code (chiffres seulement)")
-            code = st.text_input("Code (chiffres)", type="password")
-            confirm_code = st.text_input("Confirmer le code", type="password")
-            if st.button("Créer le carnet"):
-                if code == confirm_code and code.isdigit():
-                    if create_secret_journal(st.session_state.logged_user, st.session_state.journal_temp["name"], st.session_state.journal_temp["color"], code):
-                        st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
-                        st.session_state.journal_accessed = True
-                        st.session_state.create_journal_step = 0
-                        st.rerun()
-                else:
-                    st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
-    else:
-        # Carnet existe : demander le code
-        if not st.session_state.journal_accessed:
-            st.subheader("Entrez le code de votre carnet secret")
-            code = st.text_input("Code (chiffres)", type="password")
-            if st.button("Accéder"):
-                if validate_journal_code(st.session_state.logged_user, code):
-                    st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
-                    st.session_state.journal_accessed = True
-                    st.rerun()
-                else:
-                    st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
-        else:
-        # Carnet existe : demander le code
-            if not st.session_state.journal_accessed:
-                st.subheader("Entrez le code de votre carnet secret")
-                code = st.text_input("Code (chiffres)", type="password")
-                if st.button("Accéder"):
-                    if validate_journal_code(st.session_state.logged_user, code):
-                        st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
-                        st.session_state.journal_accessed = True
-                        st.rerun()
-                    else:
-                        st.error("Code incorrect.")
-            else:
-            # Interface du carnet : éditeur avec pages
-                journal = st.session_state.journal_data
-                st.markdown(f"<h2 style='color: {journal['color']};'>{journal['name']}</h2>", unsafe_allow_html=True)
-            
-                pages = journal["content"]["pages"]
-                page_options = [f"Page {i+1}: {p['title']}" for i, p in enumerate(pages)]
-                selected_page = st.selectbox("Sélectionnez une page", page_options)
-                page_index = page_options.index(selected_page)
-
-             # Éditeur de la page
-                title = st.text_input("Titre de la page", value=pages[page_index]["title"])
-                content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
-            
-                if st.button("Sauvegarder la page"):
-                    pages[page_index]["title"] = title
-                    pages[page_index]["content"] = content
-                    save_journal_content(st.session_state.logged_user, journal["content"])
-                    st.success("Page sauvegardée !")
-            
-                if st.button("Ajouter une nouvelle page"):
-                    pages.append({"title": f"Nouvelle Page {len(pages)+1}", "content": ""})
-                    save_journal_content(st.session_state.logged_user, journal["content"])
-                    st.rerun()
-        
-        if st.button("Retour au chat"):
-            st.session_state.show_journal = False
-            st.rerun()
-
-
 
 # Logique de connexion/inscription
 if not st.session_state.logged_in:
@@ -352,7 +225,14 @@ if not st.session_state.chats or st.session_state.current_chat_id not in st.sess
         st.session_state.current_chat_id = local_id
         st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase. Les chats sont temporaires.")
 
+# Sidebar après connexion
 st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
+if st.sidebar.button("Carnet Secret", key="journal_btn"):
+    st.session_state.show_journal = True
+    st.session_state.journal_accessed = False
+    st.session_state.create_journal_step = 0
+    st.rerun()
+
 if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.logged_user = None
     st.session_state.logged_in = False
@@ -360,248 +240,329 @@ if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.show_register = False
     st.session_state.chats = {}
     st.session_state.current_chat_id = None
+    st.session_state.show_journal = False
+    st.session_state.journal_accessed = False
+    st.session_state.journal_data = None
+    st.session_state.create_journal_step = 0
+    st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
     st.rerun()
 
-# CSS
-st.markdown("""
-<style>
-    .main {
-        background: #f7f7f8;
-    }
-    .stChatMessage {
-        background: white;
-        border-radius: 12px;
-        padding: 16px;
-        margin: 8px 0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        color: #000000 !important;
-    }
-    .stChatMessage p {
-        color: #000000 !important;
-    }
-    h1 {
-        color: #202123;
-        text-align: center;
-        padding: 20px;
-    }
-    .chat-item {
-        padding: 12px;
-        margin: 4px 0;
-        border-radius: 8px;
-        cursor: pointer;
-        background: #f7f7f8;
-        border: 1px solid #e5e5e5;
-        transition: all 0.2s;
-    }
-    .chat-item:hover {
-        background: #ececf1;
-    }
-    .chat-item.active {
-        background: #d1d5db;
-        border-color: #10a37f;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.title("🤖 Amalia")
-
-# Fonction pour obtenir la réponse
-def get_response(user_input, chat_id):
-    api_key = st.secrets.get("GROQ_API_KEY", "")
+# Logique pour le Carnet Secret (affiché si activé)
+if st.session_state.show_journal and st.session_state.logged_in:
+    st.title("🔒 Carnet Secret")
     
-    if not api_key:
-        return "⚠️ Clé API manquante"
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    
-    messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
-    
-    for msg in st.session_state.chats[chat_id]["messages"]:
-        messages.append({"role": msg["role"], "content": msg["content"]})
-    
-    messages.append({"role": "user", "content": user_input})
-    
-    data = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": messages,
-        "temperature": 0.7
-    }
-    
-    try:
-        resp = requests.post(url, headers=headers, json=data)
-        if resp.status_code == 200:
-            return resp.json()["choices"][0]["message"]["content"]
-        else:
-            return f"Erreur {resp.status_code}"
-    except Exception as e:
-        return f"Erreur: {str(e)}"
-
-# Sidebar avec historique des chats
-with st.sidebar:
-    st.markdown("### 💬 Historique")
-    
-    if st.button("➕ Nouveau Chat", key="new_chat_btn", use_container_width=True, type="primary"):
-        chat_data = {
-            "name": "Nouveau Chat",
-            "messages": [],
-            "created": datetime.now().strftime("%d/%m/%Y %H:%M")
-        }
-        chat_db_id = save_chat(st.session_state.logged_user, chat_data)
-        if chat_db_id:
-            st.session_state.chats[str(chat_db_id)] = chat_data
-            st.session_state.current_chat_id = str(chat_db_id)
-        else:
-            # Fallback local
-            local_id = f"local_{len(st.session_state.chats) + 1}"
-            st.session_state.chats[local_id] = chat_data
-            st.session_state.current_chat_id = local_id
-        st.rerun()
-    
-    st.markdown("---")
-    
-    sorted_chats = sorted(
-        st.session_state.chats.items(),
-        key=lambda x: x[1]["created"],
-        reverse=True
-    )
-    
-    for chat_id, chat_data in sorted_chats:
-        if len(chat_data["messages"]) > 0:
-            first_msg = chat_data["messages"][0]["content"]
-            chat_name = first_msg[:30] + "..." if len(first_msg) > 30 else first_msg
-        else:
-            chat_name = "Nouveau Chat"
-        
-        is_active = chat_id == st.session_state.current_chat_id
-        if st.button(
-            f"{'📌' if is_active else '💬'} {chat_name}",
-            key=f"chat_{chat_id}",
-            use_container_width=True,
-            type="secondary" if is_active else "tertiary"
-        ):
-            st.session_state.current_chat_id = chat_id
-            st.rerun()
-    
-    st.markdown("---")
-    st.markdown("### 📊 Stats")
-    st.metric("Total chats", len(st.session_state.chats))
-    # Vérification de sécurité avant d'accéder à current_chat
-    if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-        current_chat = st.session_state.chats[st.session_state.current_chat_id]
-        st.metric("Messages", len(current_chat["messages"]))
+    if not has_secret_journal(st.session_state.logged_user):
+        # Pas de carnet : proposer de créer
+        if st.session_state.create_journal_step == 0:
+            if st.button("Créer un nouveau carnet secret"):
+                st.session_state.create_journal_step = 1
+                st.rerun()
+        elif st.session_state.create_journal_step == 1:
+            st.subheader("Étape 1 : Choisissez la couleur de votre espace")
+            color = st.color_picker("Couleur", "#ff0000")
+            if st.button("Suivant"):
+                st.session_state.journal_temp["color"] = color
+                st.session_state.create_journal_step = 2
+                st.rerun()
+        elif st.session_state.create_journal_step == 2:
+            st.subheader("Étape 2 : Donnez un nom à votre carnet")
+            name = st.text_input("Nom du carnet")
+            if st.button("Suivant"):
+                if name:
+                    st.session_state.journal_temp["name"] = name
+                    st.session_state.create_journal_step = 3
+                    st.rerun()
+                else:
+                    st.error("Nom requis.")
+        elif st.session_state.create_journal_step == 3:
+            st.subheader("Étape 3 : Définissez un code (chiffres seulement)")
+            code = st.text_input("Code (chiffres)", type="password")
+            confirm_code = st.text_input("Confirmer le code", type="password")
+            if st.button("Créer le carnet"):
+                if code == confirm_code and code.isdigit():
+                    if create_secret_journal(st.session_state.logged_user, st.session_state.journal_temp["name"], st.session_state.journal_temp["color"], code):
+                        st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
+                        st.session_state.journal_accessed = True
+                        st.session_state.create_journal_step = 0
+                        st.rerun()
+                else:
+                    st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
     else:
-        st.metric("Messages", 0)
-
-# Afficher les messages (avec vérification de sécurité)
-if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-    current_chat = st.session_state.chats[st.session_state.current_chat_id]
-    
-    for message in current_chat["messages"]:
-        with st.chat_message(message["role"]):
-            st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
-else:
-    st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
-
-# Bouton micro et input
-col1, col2 = st.columns([1, 10])
-
-with col1:
-    mic_html = """
-    <div style="margin-top: 8px;">
-        <button id="micBtn" style="
-            background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            width: 50px;
-            height: 50px;
-        ">🎤</button>
-        <div id="status" style="font-size: 10px; text-align: center; margin-top: 4px; color: #666;"></div>
-    </div>
-
-    <script>
-    const micBtn = document.getElementById('micBtn');
-    const status = document.getElementById('status');
-
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'fr-FR';
-
-        micBtn.onclick = function() {
-            recognition.start();
-            micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
-            micBtn.textContent = '⏺️';
-            status.textContent = 'Écoute...';
-        };
-
-        recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-            micBtn.textContent = '🎤';
-            status.textContent = '✓';
+        # Carnet existe : demander le code ou afficher l'interface
+        if not st.session_state.journal_accessed:
+            st.subheader("Entrez le code de votre carnet secret")
+            code = st.text_input("Code (chiffres)", type="password")
+            if st.button("Accéder"):
+                if validate_journal_code(st.session_state.logged_user, code):
+                    st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
+                    st.session_state.journal_accessed = True
+                    st.rerun()
+                else:
+                    st.error("Code incorrect.")
+        else:
+            # Interface du carnet : éditeur avec pages
+            journal = st.session_state.journal_data
+            st.markdown(f"<h2 style='color: {journal['color']};'>{journal['name']}</h2>", unsafe_allow_html=True)
             
-            const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-            if (chatInput) {
-                chatInput.value = transcript;
-                chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-                window.parent.sessionStorage.setItem('voiceMode', 'true');
+            pages = journal["content"]["pages"]
+            page_options = [f"Page {i+1}: {p['title']}" for i, p in enumerate(pages)]
+            selected_page = st.selectbox("Sélectionnez une page", page_options)
+            page_index = page_options.index(selected_page)
+            
+            # Éditeur de la page
+            title = st.text_input("Titre de la page", value=pages[page_index]["title"])
+            content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
+            
+            if st.button("Sauvegarder la page"):
+                pages[page_index]["title"] = title
+                pages[page_index]["content"] = content
+                save_journal_content(st.session_state.logged_user, journal["content"])
+                st.success("Page sauvegardée !")
+            
+            if st.button("Ajouter une nouvelle page"):
+                pages.append({"title": f"Nouvelle Page {len(pages)+1}", "content": ""})
+                save_journal_content(st.session_state.logged_user, journal["content"])
+                st.rerun()
+    
+    if st.button("Retour au chat"):
+        st.session_state.show_journal = False
+        st.rerun()
+else:
+    # Interface de chat normale (quand le journal n'est pas affiché)
+    # CSS
+    st.markdown("""
+    <style>
+        .main {
+            background: #f7f7f8;
+        }
+        .stChatMessage {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 8px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            color: #000000 !important;
+        }
+        .stChatMessage p {
+            color: #000000 !important;
+        }
+        h1 {
+            color: #202123;
+            text-align: center;
+            padding: 20px;
+        }
+        .chat-item {
+            padding: 12px;
+            margin: 4px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #f7f7f8;
+            border: 1px solid #e5e5e5;
+            transition: all 0.2s;
+        }
+        .chat-item:hover {
+            background: #ececf1;
+        }
+        .chat-item.active {
+            background: #d1d5db;
+            border-color: #10a37f;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.title("🤖 Amalia")
+
+    # Fonction pour obtenir la réponse
+    def get_response(user_input, chat_id):
+        api_key = st.secrets.get("GROQ_API_KEY", "")
+        
+        if not api_key:
+            return "⚠️ Clé API manquante"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
+        
+        for msg in st.session_state.chats[chat_id]["messages"]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        messages.append({"role": "user", "content": user_input})
+        
+        data = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": messages,
+            "temperature": 0.7
+        }
+        
+        try:
+            resp = requests.post(url, headers=headers, json=data)
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"]
+            else:
+                return f"Erreur {resp.status_code}"
+        except Exception as e:
+            return f"Erreur: {str(e)}"
+
+    # Sidebar avec historique des chats
+    with st.sidebar:
+        st.markdown("### 💬 Historique")
+        
+        if st.button("➕ Nouveau Chat", key="new_chat_btn", use_container_width=True, type="primary"):
+            chat_data = {
+                "name": "Nouveau Chat",
+                "messages": [],
+                "created": datetime.now().strftime("%d/%m/%Y %H:%M")
             }
-        };
-
-        recognition.onerror = function() {
-            status.textContent = '❌';
-            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-            micBtn.textContent = '🎤';
-        };
-    } else {
-        status.textContent = 'Non supporté';
-    }
-    </script>
-    """
-    st.components.v1.html(mic_html, height=80)
-
-with col2:
-    # Input de chat
-    if prompt := st.chat_input("Message Amalia..."):
-        # Vérifier que le chat existe avant d'ajouter
+            chat_db_id = save_chat(st.session_state.logged_user, chat_data)
+            if chat_db_id:
+                st.session_state.chats[str(chat_db_id)] = chat_data
+                st.session_state.current_chat_id = str(chat_db_id)
+            else:
+                # Fallback local
+                local_id = f"local_{len(st.session_state.chats) + 1}"
+                st.session_state.chats[local_id] = chat_data
+                st.session_state.current_chat_id = local_id
+            st.rerun()
+        
+        st.markdown("---")
+        
+        sorted_chats = sorted(
+            st.session_state.chats.items(),
+            key=lambda x: x[1]["created"],
+            reverse=True
+        )
+        
+        for chat_id, chat_data in sorted_chats:
+            if len(chat_data["messages"]) > 0:
+                first_msg = chat_data["messages"][0]["content"]
+                chat_name = first_msg[:30] + "..." if len(first_msg) > 30 else first_msg
+            else:
+                chat_name = "Nouveau Chat"
+            
+            is_active = chat_id == st.session_state.current_chat_id
+            if st.button(
+                f"{'📌' if is_active else '💬'} {chat_name}",
+                key=f"chat_{chat_id}",
+                use_container_width=True,
+                type="secondary" if is_active else "tertiary"
+            ):
+                st.session_state.current_chat_id = chat_id
+                st.rerun()
+        
+        st.markdown("---")
+        st.markdown("### 📊 Stats")
+        st.metric("Total chats", len(st.session_state.chats))
+        # Vérification de sécurité avant d'accéder à current_chat
         if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
             current_chat = st.session_state.chats[st.session_state.current_chat_id]
-            
-            # Ajouter message utilisateur
-            current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
-            save_message(st.session_state.current_chat_id, "user", prompt)
-            
-            # Afficher message utilisateur
-            with st.chat_message("user"):
-                st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
-            
-            # Obtenir la réponse de l'IA
-            response = get_response(prompt, st.session_state.current_chat_id)
-            
-            # Ajouter le message de l'assistante
-            current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
-            save_message(st.session_state.current_chat_id, "assistant", response)
-            
-            # Mise à jour du nom du chat si premier message
-            if len(current_chat["messages"]) == 2:  # Premier échange
-                new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
-                current_chat["name"] = new_name
-                update_chat_name(st.session_state.current_chat_id, new_name)
-            
-            st.rerun()  # Force rerun to display the new messages
+            st.metric("Messages", len(current_chat["messages"]))
+        else:
+            st.metric("Messages", 0)
 
+    # Afficher les messages (avec vérification de sécurité)
+    if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+        current_chat = st.session_state.chats[st.session_state.current_chat_id]
+        
+        for message in current_chat["messages"]:
+            with st.chat_message(message["role"]):
+                st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
+    else:
+        st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
 
+    # Bouton micro et input
+    col1, col2 = st.columns([1, 10])
 
+    with col1:
+        mic_html = """
+        <div style="margin-top: 8px;">
+            <button id="micBtn" style="
+                background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
+                color: white;
+                border: none;
+                padding: 12px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                width: 50px;
+                height: 50px;
+            ">🎤</button>
+            <div id="status" style="font-size: 10px; text-align: center; margin-top: 4px; color: #666;"></div>
+        </div>
 
+        <script>
+        const micBtn = document.getElementById('micBtn');
+        const status = document.getElementById('status');
 
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'fr-FR';
 
+            micBtn.onclick = function() {
+                recognition.start();
+                micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
+                micBtn.textContent = '⏺️';
+                status.textContent = 'Écoute...';
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+                micBtn.textContent = '🎤';
+                status.textContent = '✓';
+                
+                const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+                if (chatInput) {
+                    chatInput.value = transcript;
+                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    window.parent.sessionStorage.setItem('voiceMode', 'true');
+                }
+            };
+
+            recognition.onerror = function() {
+                status.textContent = '❌';
+                micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+                micBtn.textContent = '🎤';
+            };
+        } else {
+            status.textContent = 'Non supporté';
+        }
+        </script>
+        """
+        st.components.v1.html(mic_html, height=80)
+
+    with col2:
+        # Input de chat
+        if prompt := st.chat_input("Message Amalia..."):
+            # Vérifier que le chat existe avant d'ajouter
+            if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+                current_chat = st.session_state.chats[st.session_state.current_chat_id]
+                
+                # Ajouter message utilisateur
+                current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "user", prompt)
+                
+                # Afficher message utilisateur
+                with st.chat_message("user"):
+                    st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
+                
+                # Obtenir la réponse de l'IA
+                response = get_response(prompt, st.session_state.current_chat_id)
+                
+                # Ajouter le message de l'assistante
+                current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "assistant", response)
+                
+                # Mise à jour du nom du chat si premier message
+                if len(current_chat["messages"]) == 2:  # Premier échange
+                    new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
+                    current_chat["name"] = new_name
+                    update_chat_name(st.session_state.current_chat_id, new_name)
+                
+                st.rerun()  # Force rerun to display the new messages
