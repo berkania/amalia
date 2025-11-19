@@ -1,4 +1,4 @@
-from auth import add_user, validate_user, list_users
+from auth import add_user, validate_user, list_users, has_secret_journal, create_secret_journal, validate_journal_code, load_journal_content, save_journal_content
 import streamlit as st
 import requests
 from datetime import datetime
@@ -122,6 +122,29 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+if "logged_user" not in st.session_state:
+    st.session_state.logged_user = None
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "show_login" not in st.session_state:
+    st.session_state.show_login = False
+if "show_register" not in st.session_state:
+    st.session_state.show_register = False
+if "chats" not in st.session_state:
+    st.session_state.chats = {}
+if "current_chat_id" not in st.session_state:
+    st.session_state.current_chat_id = None
+# Nouveaux états pour le carnet secret
+if "show_journal" not in st.session_state:
+    st.session_state.show_journal = False
+if "journal_accessed" not in st.session_state:
+    st.session_state.journal_accessed = False
+if "journal_data" not in st.session_state:
+    st.session_state.journal_data = None
+if "create_journal_step" not in st.session_state:
+    st.session_state.create_journal_step = 0  # 0: rien, 1: couleur, 2: nom, 3: code
+if "journal_temp" not in st.session_state:
+    st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
 # Initialisation de la session (une seule fois)
 if "logged_user" not in st.session_state:
     st.session_state.logged_user = None
@@ -135,6 +158,122 @@ if "chats" not in st.session_state:
     st.session_state.chats = {}
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
+
+
+st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
+if st.sidebar.button("Carnet Secret", key="journal_btn"):
+    st.session_state.show_journal = True
+    st.session_state.journal_accessed = False
+    st.session_state.create_journal_step = 0
+    st.rerun()
+if st.sidebar.button("Déconnexion", key="logout_btn"):
+    # (Ton code de déconnexion reste inchangé)
+    st.session_state.logged_user = None
+    st.session_state.logged_in = False
+    st.session_state.show_login = False
+    st.session_state.show_register = False
+    st.session_state.chats = {}
+    st.session_state.current_chat_id = None
+    st.session_state.show_journal = False
+    st.session_state.journal_accessed = False
+    st.session_state.journal_data = None
+    st.session_state.create_journal_step = 0
+    st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
+    st.rerun()
+
+if st.session_state.show_journal and st.session_state.logged_in:
+    st.title("🔒 Carnet Secret")
+    
+    if not has_secret_journal(st.session_state.logged_user):
+        # Pas de carnet : proposer de créer
+        if st.session_state.create_journal_step == 0:
+            if st.button("Créer un nouveau carnet secret"):
+                st.session_state.create_journal_step = 1
+                st.rerun()
+        elif st.session_state.create_journal_step == 1:
+            st.subheader("Étape 1 : Choisissez la couleur de votre espace")
+            color = st.color_picker("Couleur", "#ff0000")
+            if st.button("Suivant"):
+                st.session_state.journal_temp["color"] = color
+                st.session_state.create_journal_step = 2
+                st.rerun()
+        elif st.session_state.create_journal_step == 2:
+            st.subheader("Étape 2 : Donnez un nom à votre carnet")
+            name = st.text_input("Nom du carnet")
+            if st.button("Suivant"):
+                if name:
+                    st.session_state.journal_temp["name"] = name
+                    st.session_state.create_journal_step = 3
+                    st.rerun()
+                else:
+                    st.error("Nom requis.")
+        elif st.session_state.create_journal_step == 3:
+            st.subheader("Étape 3 : Définissez un code (chiffres seulement)")
+            code = st.text_input("Code (chiffres)", type="password")
+            confirm_code = st.text_input("Confirmer le code", type="password")
+            if st.button("Créer le carnet"):
+                if code == confirm_code and code.isdigit():
+                    if create_secret_journal(st.session_state.logged_user, st.session_state.journal_temp["name"], st.session_state.journal_temp["color"], code):
+                        st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
+                        st.session_state.journal_accessed = True
+                        st.session_state.create_journal_step = 0
+                        st.rerun()
+                else:
+                    st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
+    else:
+        # Carnet existe : demander le code
+        if not st.session_state.journal_accessed:
+            st.subheader("Entrez le code de votre carnet secret")
+            code = st.text_input("Code (chiffres)", type="password")
+            if st.button("Accéder"):
+                if validate_journal_code(st.session_state.logged_user, code):
+                    st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
+                    st.session_state.journal_accessed = True
+                    st.rerun()
+                else:
+                    st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
+    else:
+        # Carnet existe : demander le code
+        if not st.session_state.journal_accessed:
+            st.subheader("Entrez le code de votre carnet secret")
+            code = st.text_input("Code (chiffres)", type="password")
+            if st.button("Accéder"):
+                if validate_journal_code(st.session_state.logged_user, code):
+                    st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
+                    st.session_state.journal_accessed = True
+                    st.rerun()
+                else:
+                    st.error("Code incorrect.")
+        else:
+            # Interface du carnet : éditeur avec pages
+            journal = st.session_state.journal_data
+            st.markdown(f"<h2 style='color: {journal['color']};'>{journal['name']}</h2>", unsafe_allow_html=True)
+            
+            pages = journal["content"]["pages"]
+            page_options = [f"Page {i+1}: {p['title']}" for i, p in enumerate(pages)]
+            selected_page = st.selectbox("Sélectionnez une page", page_options)
+            page_index = page_options.index(selected_page)
+
+             # Éditeur de la page
+            title = st.text_input("Titre de la page", value=pages[page_index]["title"])
+            content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
+            
+            if st.button("Sauvegarder la page"):
+                pages[page_index]["title"] = title
+                pages[page_index]["content"] = content
+                save_journal_content(st.session_state.logged_user, journal["content"])
+                st.success("Page sauvegardée !")
+            
+            if st.button("Ajouter une nouvelle page"):
+                pages.append({"title": f"Nouvelle Page {len(pages)+1}", "content": ""})
+                save_journal_content(st.session_state.logged_user, journal["content"])
+                st.rerun()
+    
+    if st.button("Retour au chat"):
+        st.session_state.show_journal = False
+        st.rerun()
+
+
 
 # Logique de connexion/inscription
 if not st.session_state.logged_in:
@@ -461,5 +600,6 @@ with col2:
                 update_chat_name(st.session_state.current_chat_id, new_name)
             
             st.rerun()  # Force rerun to display the new messages
+
 
 
