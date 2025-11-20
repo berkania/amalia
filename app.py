@@ -23,17 +23,11 @@ characters = {
     "aykia": {
         "name": "AYKIA",
         "description": "Tu es AYKIA, une assistante IA conviviale…",
-        "image_folder": "aykia",   # chemin du dossier
-        "default_image": "neutral.png"
-    },
-
-    "autre_personnage": {
-        "name": "Nom",
-        "description": "Description…",
-        "image_folder": "dossier_images",
+        "image_folder": ".",        # ← le dossier courant
         "default_image": "neutral.png"
     }
 }
+
 
 # ---------------------------------------
 # 🔥 Ton code commence ici
@@ -487,7 +481,9 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         st.write(char["description"])
         
         # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
-        image_path = os.path.join(char["image_folder"], char["default_image"])
+       image_path = os.path.join(char["image_folder"], char["default_image"])
+        st.image(image_path, width=150)
+
         if os.path.exists(image_path):
             st.image(image_path, width=200)
         
@@ -765,6 +761,7 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
 
