@@ -13,6 +13,35 @@ from supabase import create_client, Client
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
 
+import streamlit as st
+import os
+
+# ---------------------------------------
+# 🔥 Définition des personnages ICI
+# ---------------------------------------
+characters = {
+    "aykia": {
+        "name": "AYKIA",
+        "description": "Tu es AYKIA, une assistante IA conviviale…",
+        "image_folder": "aykia",   # chemin du dossier
+        "default_image": "neutral.png"
+    },
+
+    "autre_personnage": {
+        "name": "Nom",
+        "description": "Description…",
+        "image_folder": "dossier_images",
+        "default_image": "neutral.png"
+    }
+}
+
+# ---------------------------------------
+# 🔥 Ton code commence ici
+# ---------------------------------------
+if st.session_state.selected_character is None:
+    ...
+
+
 # Configuration Supabase (réutilisez celle de auth.py)
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
@@ -736,6 +765,7 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
 
