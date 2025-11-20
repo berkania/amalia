@@ -188,6 +188,39 @@ if "current_audio" not in st.session_state:
 if "expression" not in st.session_state:
     st.session_state.expression = "neutre"
 
+# Fonction pour obtenir la réponse du personnage (déplacée ici pour éviter NameError)
+def get_character_response(user_input, character_prompt, chat_history):
+    api_key = st.secrets.get("GROQ_API_KEY", "")
+    if not api_key:
+        return "⚠️ Clé API manquante"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    
+    messages = [{"role": "system", "content": character_prompt}]
+    for msg in chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_input})
+    
+    data = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": messages,
+        "temperature": 0.7
+    }
+    
+    try:
+        resp = requests.post(url, headers=headers, json=data)
+        if resp.status_code == 200:
+            return resp.json()["choices"][0]["message"]["content"]
+        else:
+            return f"Erreur {resp.status_code}"
+    except Exception as e:
+        return f"Erreur: {str(e)}"
+
 # Logique de connexion/inscription
 if not st.session_state.logged_in:
     st.sidebar.title("Connexion")
@@ -461,6 +494,7 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         if st.button("Retour au chat Amalia", key="return_to_amalia_from_character"):
             st.session_state.selected_character = None
             st.session_state.character_chat_history = []
+            st.session_state.show_character_chat = False
             st.rerun()
 
 else:
@@ -692,7 +726,6 @@ else:
                 response = get_response(prompt, st.session_state.current_chat_id)
                 
                 # Ajouter le message de l'assistante
-                                # Ajouter le message de l'assistante
                 current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
                 save_message(st.session_state.current_chat_id, "assistant", response)
                 
@@ -703,5 +736,6 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
