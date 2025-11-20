@@ -4,6 +4,7 @@ import requests
 from datetime import datetime
 import html
 import logging
+from character_chat import run_character_chat
 from supabase import create_client, Client
 
 # Configuration du logging pour les erreurs
@@ -13,6 +14,11 @@ logging.basicConfig(level=logging.ERROR)
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
 supabase: Client = create_client(url, key)
+
+if st.sidebar.button("Conversation avec Personnage", key="character_chat_btn"):
+    st.session_state.show_character_chat = True
+    st.session_state.show_journal = False  # Désactiver les autres modes si nécessaire
+    st.rerun()
 
 # Fonctions de persistance avec Supabase
 def save_chat(username, chat_data):
@@ -75,6 +81,8 @@ def load_chats(username):
     except Exception as e:
         logging.error(f"Erreur load_chats: {e}")
         return {}
+
+
 
 def delete_chat(chat_id):
     try:
@@ -477,6 +485,12 @@ else:
     # Bouton micro et input
     col1, col2 = st.columns([1, 10])
 
+    if st.session_state.get("show_character_chat", False) and st.session_state.logged_in:
+    run_character_chat()
+    if st.button("Retour au chat Amalia"):
+        st.session_state.show_character_chat = False
+        st.rerun()
+
     with col1:
         mic_html = """
         <div style="margin-top: 8px;">
@@ -566,3 +580,4 @@ else:
                     update_chat_name(st.session_state.current_chat_id, new_name)
                 
                 st.rerun()  # Force rerun to display the new messages
+
