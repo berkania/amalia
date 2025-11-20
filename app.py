@@ -482,7 +482,7 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         
         # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
        image_path = os.path.join(char["image_folder"], char["default_image"])
-        st.image(image_path, width=150)
+st.image(image_path, width=150)
 
         if os.path.exists(image_path):
             st.image(image_path, width=200)
@@ -761,6 +761,7 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
 
