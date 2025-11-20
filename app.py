@@ -1,10 +1,10 @@
 from auth import add_user, validate_user, list_users, has_secret_journal, create_secret_journal, validate_journal_code, load_journal_content, save_journal_content
+from character_chat import run_character_chat
 import streamlit as st
 import requests
 from datetime import datetime
 import html
 import logging
-from character_chat import run_character_chat
 from supabase import create_client, Client
 
 # Configuration du logging pour les erreurs
@@ -14,11 +14,6 @@ logging.basicConfig(level=logging.ERROR)
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
 supabase: Client = create_client(url, key)
-
-if st.sidebar.button("Conversation avec Personnage", key="character_chat_btn"):
-    st.session_state.show_character_chat = True
-    st.session_state.show_journal = False  # Désactiver les autres modes si nécessaire
-    st.rerun()
 
 # Fonctions de persistance avec Supabase
 def save_chat(username, chat_data):
@@ -81,8 +76,6 @@ def load_chats(username):
     except Exception as e:
         logging.error(f"Erreur load_chats: {e}")
         return {}
-
-
 
 def delete_chat(chat_id):
     try:
@@ -154,6 +147,9 @@ if "create_journal_step" not in st.session_state:
     st.session_state.create_journal_step = 0  # 0: rien, 1: couleur, 2: nom, 3: code
 if "journal_temp" not in st.session_state:
     st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
+# Nouveaux états pour le chat avec personnages
+if "show_character_chat" not in st.session_state:
+    st.session_state.show_character_chat = False
 
 # Logique de connexion/inscription
 if not st.session_state.logged_in:
@@ -239,6 +235,12 @@ if st.sidebar.button("Carnet Secret", key="journal_btn"):
     st.session_state.show_journal = True
     st.session_state.journal_accessed = False
     st.session_state.create_journal_step = 0
+    st.session_state.show_character_chat = False  # Désactiver les autres modes
+    st.rerun()
+
+if st.sidebar.button("Conversation avec Personnage", key="character_chat_btn"):
+    st.session_state.show_character_chat = True
+    st.session_state.show_journal = False  # Désactiver les autres modes
     st.rerun()
 
 if st.sidebar.button("Déconnexion", key="logout_btn"):
@@ -253,10 +255,12 @@ if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.journal_data = None
     st.session_state.create_journal_step = 0
     st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
+    st.session_state.show_character_chat = False
     st.rerun()
 
-# Logique pour le Carnet Secret (affiché si activé)
+# Logique conditionnelle pour les modes
 if st.session_state.show_journal and st.session_state.logged_in:
+    # Interface du Carnet Secret
     st.title("🔒 Carnet Secret")
     
     if not has_secret_journal(st.session_state.logged_user):
@@ -335,8 +339,16 @@ if st.session_state.show_journal and st.session_state.logged_in:
     if st.button("Retour au chat"):
         st.session_state.show_journal = False
         st.rerun()
+
+elif st.session_state.show_character_chat and st.session_state.logged_in:
+    # Interface du Chat avec Personnages
+    run_character_chat()
+    if st.button("Retour au chat Amalia"):
+        st.session_state.show_character_chat = False
+        st.rerun()
+
 else:
-    # Interface de chat normale (quand le journal n'est pas affiché)
+    # Interface de chat normale (Amalia)
     # CSS
     st.markdown("""
     <style>
@@ -368,7 +380,7 @@ else:
             border: 1px solid #e5e5e5;
             transition: all 0.2s;
         }
-        .chat-item:hover {
+                .chat-item:hover {
             background: #ececf1;
         }
         .chat-item.active {
@@ -485,12 +497,6 @@ else:
     # Bouton micro et input
     col1, col2 = st.columns([1, 10])
 
-    if st.session_state.get("show_character_chat", False) and st.session_state.logged_in:
-    run_character_chat()
-    if st.button("Retour au chat Amalia"):
-        st.session_state.show_character_chat = False
-        st.rerun()
-
     with col1:
         mic_html = """
         <div style="margin-top: 8px;">
@@ -581,3 +587,4 @@ else:
                 
                 st.rerun()  # Force rerun to display the new messages
 
+       
