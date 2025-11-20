@@ -18,15 +18,7 @@ import os
 
 # ---------------------------------------
 # 🔥 Définition des personnages ICI
-# ---------------------------------------
-characters = {
-    "aykia": {
-        "name": "AYKIA",
-        "description": "Tu es AYKIA, une assistante IA conviviale…",
-        "image_folder": ".",        # ← le dossier courant
-        "default_image": "neutral.png"
-    }
-}
+
 
 
 # ---------------------------------------
@@ -447,13 +439,14 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
     
     # Définition des personnages (ajoute-en plus tard)
     characters = {
-        "AYKIA": {
+        "aykia": {
             "name": "AYKIA",
-            "description": "Une assistante IA espiègle et amicale, toujours prête à discuter et à aider !",
-            "prompt": "Tu es AYKIA, une assistante IA conviviale, espiègle et professionnelle. Réponds de manière fun et engageante.",
-            
-            "default_image": "neutral.png"  # Image par défaut
-        },
+            "description": "Tu es AYKIA, une assistante IA conviviale…",
+            "image_folder": ".",        # ← le dossier courant
+            "default_image": "neutral.png"
+        }
+    }
+
         # Ajoute d'autres personnages ici
     }
     
@@ -481,12 +474,12 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         st.write(char["description"])
         
         # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
-if st.session_state.selected_character is None:
-    st.subheader("Choisis ton personnage...")
-    cols = st.columns(len(characters))
-    for i, (key, char) in enumerate(characters.items()):
-        with cols[i]:
-         image_path = os.path.join(char["image_folder"], char["default_image"])
+        if st.session_state.selected_character is None:
+            st.subheader("Choisis ton personnage...")
+            cols = st.columns(len(characters))
+            for i, (key, char) in enumerate(characters.items()):
+                with cols[i]:
+                 image_path = os.path.join(char["image_folder"], char["default_image"])
 
 
         if os.path.exists(image_path):
@@ -766,6 +759,7 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
 
