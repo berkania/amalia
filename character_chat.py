@@ -36,6 +36,41 @@ def get_character_response(user_input, character_prompt, chat_history):
     except Exception as e:
         return f"Erreur: {str(e)}"
 
+def get_character_response(user_input, character_prompt, history):
+    """
+    Génère la réponse d'un personnage en utilisant l'API Groq.
+    """
+    api_key = st.secrets.get("GROQ_API_KEY", "")
+    if not api_key:
+        return "⚠️ Clé API manquante"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    # Messages pour l'IA
+    messages = [{"role": "system", "content": character_prompt}]
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_input})
+
+    data = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": messages,
+        "temperature": 0.7
+    }
+
+    try:
+        resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
+        if resp.status_code == 200:
+            return resp.json()["choices"][0]["message"]["content"]
+        else:
+            return f"Erreur {resp.status_code}"
+    except Exception as e:
+        return f"Erreur: {str(e)}"
+
+
 # Définition des personnages (ajoute-en plus tard)
 characters = {
     "AYKIA": {
