@@ -1,10 +1,13 @@
 from auth import add_user, validate_user, list_users, has_secret_journal, create_secret_journal, validate_journal_code, load_journal_content, save_journal_content
-from character_chat import run_character_chat
 import streamlit as st
 import requests
 from datetime import datetime
 import html
 import logging
+import os
+import random
+import time
+from gtts import gTTS
 from supabase import create_client, Client
 
 # Configuration du logging pour les erreurs
@@ -115,6 +118,35 @@ def update_chat_name(chat_id, new_name):
     except Exception as e:
         logging.error(f"Erreur update_chat_name: {e}")
 
+# Fonctions pour TTS et animation (inspirées de votre code AYKIA)
+def parle(text):
+    """Synthèse vocale avec gTTS et animation de l'image."""
+    print("🤖:", text)
+    tts = gTTS(text=text, lang='fr')
+    nom_fichier = f"reponse_{int(time.time())}.mp3"
+    tts.save(nom_fichier)
+    
+    # Animation basée sur les voyelles (simulée via JS)
+    voyelles = [c for c in text.lower() if c in "aeioué"]
+    duree = len(text) * 0.06  # Durée approximative
+    
+    # Retourner les données pour JS
+    return nom_fichier, voyelles, duree
+
+def extraire_voyelles(text):
+    return [c for c in text.lower() if c in "aeioué"]
+
+# Nettoyage fichiers audio anciens
+def nettoyage_audio():
+    for f in os.listdir():
+        if f.startswith("reponse_") and f.endswith(".mp3"):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
+
+nettoyage_audio()
+
 # Configuration de la page (une seule fois au début)
 st.set_page_config(
     page_title="Amalia - Assistant IA",
@@ -150,6 +182,11 @@ if "journal_temp" not in st.session_state:
 # Nouveaux états pour le chat avec personnages
 if "show_character_chat" not in st.session_state:
     st.session_state.show_character_chat = False
+# États pour l'animation et TTS
+if "current_audio" not in st.session_state:
+    st.session_state.current_audio = None
+if "expression" not in st.session_state:
+    st.session_state.expression = "neutre"
 
 # Logique de connexion/inscription
 if not st.session_state.logged_in:
@@ -227,7 +264,9 @@ if not st.session_state.chats or st.session_state.current_chat_id not in st.sess
         local_id = f"local_{len(st.session_state.chats) + 1}"
         st.session_state.chats[local_id] = chat_data
         st.session_state.current_chat_id = local_id
-        st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase. Les chats sont temporaires.")
+        st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase")
+
+# Suite du code pour app.py (continuation après la logique de connexion/inscription)
 
 # Sidebar après connexion
 st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
@@ -341,11 +380,88 @@ if st.session_state.show_journal and st.session_state.logged_in:
         st.rerun()
 
 elif st.session_state.show_character_chat and st.session_state.logged_in:
-    # Interface du Chat avec Personnages
-    run_character_chat()
-    if st.button("Retour au chat Amalia", key="return_to_amalia_chat"):
-        st.session_state.show_character_chat = False
-        st.rerun()
+    # Interface du Chat avec Personnages (intégrée directement)
+    st.title("💬 Conversation avec ton Personnage")
+    
+    # Initialisation des états de session pour ce module
+    if "selected_character" not in st.session_state:
+        st.session_state.selected_character = None
+    if "character_chat_history" not in st.session_state:
+        st.session_state.character_chat_history = []
+    
+    # Définition des personnages (ajoute-en plus tard)
+    characters = {
+        "AYKIA": {
+            "name": "AYKIA",
+            "description": "Une assistante IA espiègle et amicale, toujours prête à discuter et à aider !",
+            "prompt": "Tu es AYKIA, une assistante IA conviviale, espiègle et professionnelle. Réponds de manière fun et engageante.",
+            "image_folder": "characters/aykia/",
+            "default_image": "neutral.png"  # Image par défaut
+        },
+        # Ajoute d'autres personnages ici
+    }
+    
+    # Étape 1 : Sélection du personnage
+    if st.session_state.selected_character is None:
+        st.subheader("Choisis ton personnage pour commencer la conversation !")
+        cols = st.columns(len(characters))
+        for i, (key, char) in enumerate(characters.items()):
+            with cols[i]:
+                # Afficher l'image du personnage
+                image_path = os.path.join(char["image_folder"], char["default_image"])
+                if os.path.exists(image_path):
+                    st.image(image_path, width=150, caption=char["name"])
+                else:
+                    st.write(f"Image non trouvée pour {char['name']}")
+                if st.button(f"Choisir {char['name']}", key=f"select_{key}"):
+                    st.session_state.selected_character = key
+                    st.session_state.character_chat_history = []  # Reset l'historique
+                    st.rerun()
+    
+    # Étape 2 : Conversation avec le personnage sélectionné
+    else:
+        char = characters[st.session_state.selected_character]
+        st.subheader(f"Conversation avec {char['name']}")
+        st.write(char["description"])
+        
+        # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
+        image_path = os.path.join(char["image_folder"], char["default_image"])
+        if os.path.exists(image_path):
+            st.image(image_path, width=200)
+        
+        # Afficher l'historique des messages
+        for msg in st.session_state.character_chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+        
+        # Input pour le message utilisateur
+        if prompt := st.chat_input(f"Parle à {char['name']}..."):
+            # Ajouter le message utilisateur
+            st.session_state.character_chat_history.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            
+            # Obtenir la réponse du personnage
+            response = get_character_response(prompt, char["prompt"], st.session_state.character_chat_history[:-1])
+            
+            # Ajouter la réponse
+            st.session_state.character_chat_history.append({"role": "assistant", "content": response})
+            with st.chat_message("assistant"):
+                st.markdown(response)
+            
+            st.rerun()
+        
+        # Bouton pour changer de personnage
+        if st.button("Changer de personnage", key="change_character_btn"):
+            st.session_state.selected_character = None
+            st.session_state.character_chat_history = []
+            st.rerun()
+        
+        # Bouton pour retourner au chat normal
+        if st.button("Retour au chat Amalia", key="return_to_amalia_from_character"):
+            st.session_state.selected_character = None
+            st.session_state.character_chat_history = []
+            st.rerun()
 
 else:
     # Interface de chat normale (Amalia)
@@ -422,9 +538,9 @@ else:
         try:
             resp = requests.post(url, headers=headers, json=data)
             if resp.status_code == 200:
-                                return resp.json()["choices"][0]["message"]["content"]
+                return resp.json()["choices"][0]["message"]["content"]
             else:
-                return f"Erreur {resp.status_code}: {resp.text}"
+                return f"Erreur {resp.status_code}"
         except Exception as e:
             return f"Erreur: {str(e)}"
 
@@ -576,16 +692,16 @@ else:
                 response = get_response(prompt, st.session_state.current_chat_id)
                 
                 # Ajouter le message de l'assistante
+                                # Ajouter le message de l'assistante
                 current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
                 save_message(st.session_state.current_chat_id, "assistant", response)
                 
-                # Mise à jour du nom du chat si premier message
-                if len(current_chat["messages"]) == 2:  # Premier échange
-                    new_name = prompt[:30] + "..." if len(prompt) > 30 else prompt
-                    current_chat["name"] = new_name
-                    update_chat_name(st.session_state.current_chat_id, new_name)
+                # Afficher le message de l'assistante
+                with st.chat_message("assistant"):
+                    st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
                 
-                st.rerun()  # Force rerun to display the new messages
+                st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
