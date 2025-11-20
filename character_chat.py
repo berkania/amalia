@@ -116,13 +116,13 @@ def run_character_chat():
             st.rerun()
         
         # Bouton pour changer de personnage
-        if st.button("Changer de personnage"):
+        if st.button("Changer de personnage", key="change_character_btn"):
             st.session_state.selected_character = None
             st.session_state.character_chat_history = []
             st.rerun()
         
         # Bouton pour retourner au chat normal
-        if st.button("Retour au chat Amalia"):
+        if st.button("Retour au chat Amalia", key="return_to_amalia_from_character"):
             st.session_state.selected_character = None
             st.session_state.character_chat_history = []
             st.rerun()
