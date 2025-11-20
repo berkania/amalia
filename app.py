@@ -428,7 +428,7 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
             "name": "AYKIA",
             "description": "Une assistante IA espiègle et amicale, toujours prête à discuter et à aider !",
             "prompt": "Tu es AYKIA, une assistante IA conviviale, espiègle et professionnelle. Réponds de manière fun et engageante.",
-            "image_folder": "characters/aykia/",
+            
             "default_image": "neutral.png"  # Image par défaut
         },
         # Ajoute d'autres personnages ici
@@ -736,6 +736,7 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
 
