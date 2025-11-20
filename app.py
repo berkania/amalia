@@ -266,20 +266,20 @@ if st.session_state.show_journal and st.session_state.logged_in:
     if not has_secret_journal(st.session_state.logged_user):
         # Pas de carnet : proposer de créer
         if st.session_state.create_journal_step == 0:
-            if st.button("Créer un nouveau carnet secret"):
+            if st.button("Créer un nouveau carnet secret", key="create_journal_btn"):
                 st.session_state.create_journal_step = 1
                 st.rerun()
         elif st.session_state.create_journal_step == 1:
             st.subheader("Étape 1 : Choisissez la couleur de votre espace")
             color = st.color_picker("Couleur", "#ff0000")
-            if st.button("Suivant"):
+            if st.button("Suivant", key="journal_step1_next"):
                 st.session_state.journal_temp["color"] = color
                 st.session_state.create_journal_step = 2
                 st.rerun()
         elif st.session_state.create_journal_step == 2:
             st.subheader("Étape 2 : Donnez un nom à votre carnet")
             name = st.text_input("Nom du carnet")
-            if st.button("Suivant"):
+            if st.button("Suivant", key="journal_step2_next"):
                 if name:
                     st.session_state.journal_temp["name"] = name
                     st.session_state.create_journal_step = 3
@@ -290,7 +290,7 @@ if st.session_state.show_journal and st.session_state.logged_in:
             st.subheader("Étape 3 : Définissez un code (chiffres seulement)")
             code = st.text_input("Code (chiffres)", type="password")
             confirm_code = st.text_input("Confirmer le code", type="password")
-            if st.button("Créer le carnet"):
+            if st.button("Créer le carnet", key="create_journal_final"):
                 if code == confirm_code and code.isdigit():
                     if create_secret_journal(st.session_state.logged_user, st.session_state.journal_temp["name"], st.session_state.journal_temp["color"], code):
                         st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
@@ -304,7 +304,7 @@ if st.session_state.show_journal and st.session_state.logged_in:
         if not st.session_state.journal_accessed:
             st.subheader("Entrez le code de votre carnet secret")
             code = st.text_input("Code (chiffres)", type="password")
-            if st.button("Accéder"):
+            if st.button("Accéder", key="access_journal_btn"):
                 if validate_journal_code(st.session_state.logged_user, code):
                     st.session_state.journal_data = load_journal_content(st.session_state.logged_user)
                     st.session_state.journal_accessed = True
@@ -325,25 +325,25 @@ if st.session_state.show_journal and st.session_state.logged_in:
             title = st.text_input("Titre de la page", value=pages[page_index]["title"])
             content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
             
-            if st.button("Sauvegarder la page"):
+            if st.button("Sauvegarder la page", key="save_page_btn"):
                 pages[page_index]["title"] = title
                 pages[page_index]["content"] = content
                 save_journal_content(st.session_state.logged_user, journal["content"])
                 st.success("Page sauvegardée !")
             
-            if st.button("Ajouter une nouvelle page"):
+            if st.button("Ajouter une nouvelle page", key="add_page_btn"):
                 pages.append({"title": f"Nouvelle Page {len(pages)+1}", "content": ""})
                 save_journal_content(st.session_state.logged_user, journal["content"])
                 st.rerun()
     
-    if st.button("Retour au chat"):
+    if st.button("Retour au chat", key="return_to_chat_from_journal"):
         st.session_state.show_journal = False
         st.rerun()
 
 elif st.session_state.show_character_chat and st.session_state.logged_in:
     # Interface du Chat avec Personnages
     run_character_chat()
-    if st.button("Retour au chat Amalia"):
+    if st.button("Retour au chat Amalia", key="return_to_amalia_chat"):
         st.session_state.show_character_chat = False
         st.rerun()
 
@@ -422,9 +422,9 @@ else:
         try:
             resp = requests.post(url, headers=headers, json=data)
             if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"]
+                                return resp.json()["choices"][0]["message"]["content"]
             else:
-                return f"Erreur {resp.status_code}"
+                return f"Erreur {resp.status_code}: {resp.text}"
         except Exception as e:
             return f"Erreur: {str(e)}"
 
@@ -588,3 +588,4 @@ else:
                 st.rerun()  # Force rerun to display the new messages
 
        
+
