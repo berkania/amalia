@@ -13,21 +13,6 @@ from supabase import create_client, Client
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
 
-import streamlit as st
-import os
-
-# ---------------------------------------
-# 🔥 Définition des personnages ICI
-
-
-
-# ---------------------------------------
-# 🔥 Ton code commence ici
-# ---------------------------------------
-if st.session_state.selected_character is None:
-    ...
-
-
 # Configuration Supabase (réutilisez celle de auth.py)
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
@@ -286,7 +271,7 @@ if not st.session_state.logged_in:
     if st.session_state.show_register:
         st.sidebar.subheader("Créer un compte")
         new_user = st.sidebar.text_input("Nouveau nom d'utilisateur", key="register_username")
-        new_password = st.sidebar.text_input("Nouveau mot de passe", type="password", key="register_password")
+        new_password = st.sidebar.text_input("Nouveau mot de passe", type="register_password")
         if st.sidebar.button("Valider Inscription", key="validate_register_btn"):
             if add_user(new_user, new_password):
                 st.sidebar.success("Compte créé avec succès ! Cliquez sur 'Se connecter' pour vous connecter.")
@@ -442,13 +427,19 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         "aykia": {
             "name": "AYKIA",
             "description": "Tu es AYKIA, une assistante IA conviviale…",
-            "image_folder": ".",        # ← le dossier courant
+            "prompt": "Tu es AYKIA, une assistante IA conviviale, espiègle et professionnelle. Réponds de manière fun et engageante.",
+            "image_folder": ".",  # Dossier courant pour l'image
             "default_image": "neutral.png"
-        }
+        },
+        # Ajoute d'autres personnages ici, par exemple :
+        # "robot": {
+        #     "name": "Robot Sage",
+        #     "description": "Un robot sage et réfléchi.",
+        #     "prompt": "Tu es un robot sage, réponds de manière réfléchie.",
+        #     "image_folder": "characters/robot/",
+        #     "default_image": "thinking.png"
+        # }
     }
-
-        # Ajoute d'autres personnages ici
-    
     
     # Étape 1 : Sélection du personnage
     if st.session_state.selected_character is None:
@@ -461,7 +452,9 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
                 if os.path.exists(image_path):
                     st.image(image_path, width=150, caption=char["name"])
                 else:
-                    st.write(f"Image non trouvée pour {char['name']}")
+                    st.write(f"Image non trouvée pour {char['name']} (chemin : {image_path})")
+                    # Placeholder si image manquante
+                    st.image("https://via.placeholder.com/150?text=Image+Manquante", width=150, caption=char["name"])
                 if st.button(f"Choisir {char['name']}", key=f"select_{key}"):
                     st.session_state.selected_character = key
                     st.session_state.character_chat_history = []  # Reset l'historique
@@ -474,16 +467,11 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         st.write(char["description"])
         
         # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
-        if st.session_state.selected_character is None:
-            st.subheader("Choisis ton personnage...")
-            cols = st.columns(len(characters))
-            for i, (key, char) in enumerate(characters.items()):
-                with cols[i]:
-                 image_path = os.path.join(char["image_folder"], char["default_image"])
-
-
+        image_path = os.path.join(char["image_folder"], char["default_image"])
         if os.path.exists(image_path):
             st.image(image_path, width=200)
+        else:
+            st.write(f"Image non trouvée : {image_path}")
         
         # Afficher l'historique des messages
         for msg in st.session_state.character_chat_history:
@@ -758,7 +746,9 @@ else:
                 
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
+    # Interface
        
+
 
 
 
