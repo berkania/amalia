@@ -448,7 +448,7 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
     }
 
         # Ajoute d'autres personnages ici
-    }
+    
     
     # Étape 1 : Sélection du personnage
     if st.session_state.selected_character is None:
@@ -759,6 +759,7 @@ else:
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
        
+
 
 
 
