@@ -2,5 +2,4 @@ streamlit
 requests
 bcrypt
 supabase
-
-
+gTTS
