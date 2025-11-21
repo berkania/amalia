@@ -9,6 +9,9 @@ import random
 import time
 from gtts import gTTS
 from supabase import create_client, Client
+import base64
+from PIL import Image
+import io
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
@@ -554,7 +557,7 @@ else:
     st.title("🤖 Amalia")
 
     # Fonction pour obtenir la réponse
-    def get_response(user_input, chat_id):
+    def get_response(user_input, chat_id, image=None):
         api_key = st.secrets.get("GROQ_API_KEY", "")
         
         if not api_key:
@@ -567,15 +570,30 @@ else:
         
         url = "https://api.groq.com/openai/v1/chat/completions"
         
-        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
+        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle. Si une image est fournie, analyse-la et explique-la en détail, comme si c'était un cours ou un document."}]
         
         for msg in st.session_state.chats[chat_id]["messages"]:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        messages.append({"role": "user", "content": user_input})
+        # Préparer le message utilisateur avec ou sans image
+        user_content = []
+        if image:
+            # Encoder l'image en base64
+            image_base64 = base64.b64encode(image).decode('utf-8')
+            # Détecter le type MIME (simple : assume PNG/JPG)
+            mime_type = "image/png" if image.startswith(b'\x89PNG') else "image/jpeg"
+            user_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{image_base64}"
+                }
+            })
+        user_content.append({"type": "text", "content": user_input})
+        
+        messages.append({"role": "user", "content": user_content})
         
         data = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.2-11b-vision-instruct",  # Modèle vision (change si besoin)
             "messages": messages,
             "temperature": 0.7
         }
@@ -585,7 +603,7 @@ else:
             if resp.status_code == 200:
                 return resp.json()["choices"][0]["message"]["content"]
             else:
-                return f"Erreur {resp.status_code}"
+                return f"Erreur {resp.status_code}: {resp.text}"
         except Exception as e:
             return f"Erreur: {str(e)}"
 
@@ -655,6 +673,9 @@ else:
     else:
         st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
 
+    # Uploader d'image (optionnel, pour analyse)
+    uploaded_image = st.file_uploader("📎 Upload une image pour analyse (ex. : cours)", type=["png", "jpg", "jpeg"], key="image_uploader")
+
     # Bouton micro et input
     col1, col2 = st.columns([1, 10])
 
@@ -720,34 +741,43 @@ else:
 
     with col2:
         # Input de chat
-        if prompt := st.chat_input("Message Amalia..."):
+        if prompt := st.chat_input("Message Amalia... (ou upload une image ci-dessus)"):
             # Vérifier que le chat existe avant d'ajouter
             if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
                 current_chat = st.session_state.chats[st.session_state.current_chat_id]
                 
-                # Ajouter message utilisateur
-                current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "user", prompt)
+                # Lire l'image si uploadée
+                image_bytes = None
+                if uploaded_image:
+                    image_bytes = uploaded_image.read()  # Bytes de l'image
+                    # Vérifier la taille (limite à 5MB)
+                    if len(image_bytes) > 5 * 1024 * 1024:
+                        st.error("Image trop grande (max 5MB).")
+                        st.stop()
+                    # Afficher l'image dans le chat
+                    with st.chat_message("user"):
+                        st.image(uploaded_image, caption="Image uploadée", width=300)
+                        st.markdown(f'<div style="color: #000000;">{prompt or "Analyse cette image."}</div>', unsafe_allow_html=True)
+                else:
+                    # Message texte normal
+                    with st.chat_message("user"):
+                        st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
                 
-                # Afficher message utilisateur
-                with st.chat_message("user"):
-                    st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
+                # Ajouter message utilisateur (avec ou sans image)
+                current_chat["messages"].append({"role": "user", "content": prompt or "Image analysée", "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "user", prompt or "Image analysée")
                 
-                # Obtenir la réponse de l'IA
-                response = get_response(prompt, st.session_state.current_chat_id)
+                # Obtenir la réponse de l'IA (avec image si fournie)
+                response = get_response(prompt or "Analyse cette image d'un cours et explique-la.", st.session_state.current_chat_id, image_bytes)
                 
-                # Ajouter le message de l'assistante
+                # Ajouter et afficher la réponse
                 current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
                 save_message(st.session_state.current_chat_id, "assistant", response)
                 
-                # Afficher le message de l'assistante
                 with st.chat_message("assistant"):
                     st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
                 
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
-
-    # Interface
-       
 
 
 
