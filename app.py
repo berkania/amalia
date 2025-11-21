@@ -805,7 +805,11 @@ def get_response(user_input, chat_id, image=None):
 # Dans la section "Interface de chat normale (Amalia)" :
 
 # Uploader d'image (optionnel, pour analyse)
-uploaded_image = st.file_uploader("📎 Upload une image pour analyse (ex. : cours)", type=["png", "jpg", "jpeg"], key="image_uploader")
+uploaded_image = st.file_uploader(
+    "📎 Upload une image pour analyse (ex. : cours)",
+    type=["png", "jpg", "jpeg"],
+    key="image_uploader_unique"
+)
 
 # ... (bouton micro et input restent inchangés)
 
@@ -848,6 +852,7 @@ with col2:
                 st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
             
             st.rerun()  # Recharger la page pour mettre à jour l'affichage
+
 
 
 
