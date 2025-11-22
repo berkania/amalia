@@ -9,32 +9,12 @@ import random
 import time
 from gtts import gTTS
 from supabase import create_client, Client
+import base64
+from PIL import Image
+import io
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
-
-import streamlit as st
-import os
-
-# ---------------------------------------
-# 🔥 Définition des personnages ICI
-# ---------------------------------------
-characters = {
-    "aykia": {
-        "name": "AYKIA",
-        "description": "Tu es AYKIA, une assistante IA conviviale…",
-        "image_folder": ".",        # ← le dossier courant
-        "default_image": "neutral.png"
-    }
-}
-
-
-# ---------------------------------------
-# 🔥 Ton code commence ici
-# ---------------------------------------
-if st.session_state.selected_character is None:
-    ...
-
 
 # Configuration Supabase (réutilisez celle de auth.py)
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
@@ -294,7 +274,7 @@ if not st.session_state.logged_in:
     if st.session_state.show_register:
         st.sidebar.subheader("Créer un compte")
         new_user = st.sidebar.text_input("Nouveau nom d'utilisateur", key="register_username")
-        new_password = st.sidebar.text_input("Nouveau mot de passe", type="password", key="register_password")
+        new_password = st.sidebar.text_input("Nouveau mot de passe", type="register_password")
         if st.sidebar.button("Valider Inscription", key="validate_register_btn"):
             if add_user(new_user, new_password):
                 st.sidebar.success("Compte créé avec succès ! Cliquez sur 'Se connecter' pour vous connecter.")
@@ -447,14 +427,21 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
     
     # Définition des personnages (ajoute-en plus tard)
     characters = {
-        "AYKIA": {
+        "aykia": {
             "name": "AYKIA",
-            "description": "Une assistante IA espiègle et amicale, toujours prête à discuter et à aider !",
+            "description": "Tu es AYKIA, une assistante IA conviviale…",
             "prompt": "Tu es AYKIA, une assistante IA conviviale, espiègle et professionnelle. Réponds de manière fun et engageante.",
-            
-            "default_image": "neutral.png"  # Image par défaut
+            "image_folder": ".",  # Dossier courant pour l'image
+            "default_image": "neutral.png"
         },
-        # Ajoute d'autres personnages ici
+        # Ajoute d'autres personnages ici, par exemple :
+        # "robot": {
+        #     "name": "Robot Sage",
+        #     "description": "Un robot sage et réfléchi.",
+        #     "prompt": "Tu es un robot sage, réponds de manière réfléchie.",
+        #     "image_folder": "characters/robot/",
+        #     "default_image": "thinking.png"
+        # }
     }
     
     # Étape 1 : Sélection du personnage
@@ -468,7 +455,9 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
                 if os.path.exists(image_path):
                     st.image(image_path, width=150, caption=char["name"])
                 else:
-                    st.write(f"Image non trouvée pour {char['name']}")
+                    st.write(f"Image non trouvée pour {char['name']} (chemin : {image_path})")
+                    # Placeholder si image manquante
+                    st.image("https://via.placeholder.com/150?text=Image+Manquante", width=150, caption=char["name"])
                 if st.button(f"Choisir {char['name']}", key=f"select_{key}"):
                     st.session_state.selected_character = key
                     st.session_state.character_chat_history = []  # Reset l'historique
@@ -481,16 +470,11 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
         st.write(char["description"])
         
         # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
-if st.session_state.selected_character is None:
-    st.subheader("Choisis ton personnage...")
-    cols = st.columns(len(characters))
-    for i, (key, char) in enumerate(characters.items()):
-        with cols[i]:
-         image_path = os.path.join(char["image_folder"], char["default_image"])
-
-
+        image_path = os.path.join(char["image_folder"], char["default_image"])
         if os.path.exists(image_path):
             st.image(image_path, width=200)
+        else:
+            st.write(f"Image non trouvée : {image_path}")
         
         # Afficher l'historique des messages
         for msg in st.session_state.character_chat_history:
@@ -573,7 +557,7 @@ else:
     st.title("🤖 Amalia")
 
     # Fonction pour obtenir la réponse
-    def get_response(user_input, chat_id):
+    def get_response(user_input, chat_id, image=None):
         api_key = st.secrets.get("GROQ_API_KEY", "")
         
         if not api_key:
@@ -586,15 +570,30 @@ else:
         
         url = "https://api.groq.com/openai/v1/chat/completions"
         
-        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
+        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle. Si une image est fournie, analyse-la et explique-la en détail, comme si c'était un cours ou un document."}]
         
         for msg in st.session_state.chats[chat_id]["messages"]:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        messages.append({"role": "user", "content": user_input})
+        # Préparer le message utilisateur avec ou sans image
+        user_content = []
+        if image:
+            # Encoder l'image en base64
+            image_base64 = base64.b64encode(image).decode('utf-8')
+            # Détecter le type MIME (simple : assume PNG/JPG)
+            mime_type = "image/png" if image.startswith(b'\x89PNG') else "image/jpeg"
+            user_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{image_base64}"
+                }
+            })
+        user_content.append({"type": "text", "content": user_input})
+        
+        messages.append({"role": "user", "content": user_content})
         
         data = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.2-11b-vision-instruct",  # Modèle vision (change si besoin)
             "messages": messages,
             "temperature": 0.7
         }
@@ -604,7 +603,7 @@ else:
             if resp.status_code == 200:
                 return resp.json()["choices"][0]["message"]["content"]
             else:
-                return f"Erreur {resp.status_code}"
+                return f"Erreur {resp.status_code}: {resp.text}"
         except Exception as e:
             return f"Erreur: {str(e)}"
 
@@ -674,6 +673,9 @@ else:
     else:
         st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
 
+    # Uploader d'image (optionnel, pour analyse)
+    uploaded_image = st.file_uploader("📎 Upload une image pour analyse (ex. : cours)", type=["png", "jpg", "jpeg"], key="image_uploader")
+
     # Bouton micro et input
     col1, col2 = st.columns([1, 10])
 
@@ -737,48 +739,115 @@ else:
         """
         st.components.v1.html(mic_html, height=80)
 
-    with col2:
-        # Input de chat
-        if prompt := st.chat_input("Message Amalia..."):
-            # Vérifier que le chat existe avant d'ajouter
-            if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-                current_chat = st.session_state.chats[st.session_state.current_chat_id]
-                
-                # Ajouter message utilisateur
-                current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "user", prompt)
-                
-                # Afficher message utilisateur
+# ... (le reste de ton code reste inchangé jusqu'à la fonction get_response)
+
+# Fonction pour obtenir la réponse (modifiée pour corriger le format)
+def get_response(user_input, chat_id, image=None):
+    api_key = st.secrets.get("GROQ_API_KEY", "")
+    
+    if not api_key:
+        return "⚠️ Clé API manquante"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    
+    messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle. Si une image est fournie, analyse-la et explique-la en détail, comme si c'était un cours ou un document."}]
+    
+    for msg in st.session_state.chats[chat_id]["messages"]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    
+    # Préparer le message utilisateur avec ou sans image
+    user_content = []
+    if image:
+        # Encoder l'image en base64
+        image_base64 = base64.b64encode(image).decode('utf-8')
+        # Détecter le type MIME avec PIL (plus fiable)
+        try:
+            img = Image.open(io.BytesIO(image))
+            mime_type = f"image/{img.format.lower()}"  # ex. : image/png ou image/jpeg
+        except Exception:
+            mime_type = "image/jpeg"  # Fallback
+        
+        user_content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{mime_type};base64,{image_base64}"
+            }
+        })
+    
+    # Ajouter le texte (obligatoire pour le format API)
+    text_to_send = user_input or "Analyse cette image d'un cours et explique-la."
+    user_content.append({"type": "text", "text": text_to_send})  # ✅ Correction : "text" au lieu de "content"
+    
+    messages.append({"role": "user", "content": user_content})
+    
+    data = {
+        "model": "llama-3.2-11b-vision-instruct",  # Modèle vision
+        "messages": messages,
+        "temperature": 0.7
+    }
+    
+    try:
+        resp = requests.post(url, headers=headers, json=data)
+        if resp.status_code == 200:
+            return resp.json()["choices"][0]["message"]["content"]
+        else:
+            return f"Erreur {resp.status_code}: {resp.text}"
+    except Exception as e:
+        return f"Erreur: {str(e)}"
+
+# ... (le reste de ton code reste inchangé jusqu'à l'interface de chat)
+
+# Dans la section "Interface de chat normale (Amalia)" :
+
+# Uploader d'image (optionnel, pour analyse)
+uploaded_image = st.file_uploader("📎 Upload une image pour analyse (ex. : cours)", type=["png", "jpg", "jpeg"], key="image_uploader")
+
+# ... (bouton micro et input restent inchangés)
+
+with col2:
+    # Input de chat
+    if prompt := st.chat_input("Message Amalia... (ou upload une image ci-dessus)"):
+        # Vérifier que le chat existe avant d'ajouter
+        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+            current_chat = st.session_state.chats[st.session_state.current_chat_id]
+            
+            # Lire l'image si uploadée
+            image_bytes = None
+            if uploaded_image:
+                image_bytes = uploaded_image.read()  # Bytes de l'image
+                # Vérifier la taille (limite à 5MB)
+                if len(image_bytes) > 5 * 1024 * 1024:
+                    st.error("Image trop grande (max 5MB).")
+                    st.stop()
+                # Afficher l'image dans le chat
+                with st.chat_message("user"):
+                    st.image(uploaded_image, caption="Image uploadée", width=300)
+                    st.markdown(f'<div style="color: #000000;">{prompt or "Analyse cette image."}</div>', unsafe_allow_html=True)
+            else:
+                # Message texte normal
                 with st.chat_message("user"):
                     st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
-                
-                # Obtenir la réponse de l'IA
-                response = get_response(prompt, st.session_state.current_chat_id)
-                
-                # Ajouter le message de l'assistante
-                current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "assistant", response)
-                
-                # Afficher le message de l'assistante
-                with st.chat_message("assistant"):
-                    st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
-                
-                st.rerun()  # Recharger la page pour mettre à jour l'affichage
-
-       
-
-
-
-
-
-
-
-
-
-
-
-
-
+            
+            # Ajouter message utilisateur (avec ou sans image)
+            current_chat["messages"].append({"role": "user", "content": prompt or "Image analysée", "timestamp": datetime.now().isoformat()})
+            save_message(st.session_state.current_chat_id, "user", prompt or "Image analysée")
+            
+            # Obtenir la réponse de l'IA (avec image si fournie)
+            response = get_response(prompt or "Analyse cette image d'un cours et explique-la.", st.session_state.current_chat_id, image_bytes)
+            
+            # Ajouter et afficher la réponse
+            current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
+            save_message(st.session_state.current_chat_id, "assistant", response)
+            
+            with st.chat_message("assistant"):
+                st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
+            
+            st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
 
 
