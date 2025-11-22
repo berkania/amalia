@@ -734,3 +734,4 @@ else:
                     st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
                 
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
+
