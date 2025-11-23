@@ -17,8 +17,7 @@ import smtplib
 import email
 import imaplib
 
-# Configurer wikipedia en français
-wikipedia.set_lang("fr")
+
 
 # Nettoyage fichiers audio anciens
 def nettoyage_audio():
