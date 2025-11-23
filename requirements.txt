@@ -6,3 +6,16 @@ gTTS
 SpeechRecognition
 pydub
 
+streamlit
+requests
+gtts
+googletrans==4.0.0rc1  
+wikipedia
+feedparser
+speechrecognition  
+imaplib3  
+smtplib
+email  
+supabase 
+   
+   
