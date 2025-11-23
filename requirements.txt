@@ -3,3 +3,6 @@ requests
 bcrypt
 supabase
 gTTS
+SpeechRecognition
+pydub
+
