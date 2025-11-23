@@ -8,7 +8,7 @@ import datetime
 import re
 import webbrowser
 
-import wikipedia
+
 import feedparser
 import requests
 from email.mime.text import MIMEText
