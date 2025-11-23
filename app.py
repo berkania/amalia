@@ -630,3 +630,4 @@ with cols[1]:
             save_message(st.session_state.current_chat_id, "assistant", response)
             st.rerun()
 
+
