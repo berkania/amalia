@@ -16,8 +16,6 @@ from email.mime.multipart import MIMEMultipart
 import smtplib
 import email
 import imaplib
-        
-
 
 # Configurer wikipedia en français
 wikipedia.set_lang("fr")
@@ -34,9 +32,6 @@ def nettoyage_audio():
 nettoyage_audio()
 
 # Initialisation TTS
-
-
-translator = Translator()
 listener = sr.Recognizer()
 
 contacts = {
@@ -50,8 +45,6 @@ contacts = {
 def ecoute():
     """Fonction pour écouter via reconnaissance vocale (adaptée pour Streamlit avec JS)."""
     try:
-        # Utilise le JS de Streamlit pour la reconnaissance (comme dans app.py)
-        # Ici, on suppose que le texte est passé via session_state ou un callback
         if "voice_input" in st.session_state and st.session_state.voice_input:
             texte = st.session_state.voice_input.lower()
             st.session_state.voice_input = ""  # Reset après utilisation
@@ -67,9 +60,7 @@ def parle(text):
     tts = gTTS(text=text, lang='fr')
     nom_fichier = f"reponse_{int(time.time())}.mp3"
     tts.save(nom_fichier)
-    # Jouer l'audio dans Streamlit
     st.audio(nom_fichier, format="audio/mp3", autoplay=True)
-    # Nettoyer après lecture (délai approximatif)
     threading.Timer(len(text) * 0.06 + 1, lambda: supprimer_fichier_audio(nom_fichier)).start()
 
 def supprimer_fichier_audio(fichier, tentatives=5):
@@ -126,19 +117,6 @@ def meteo_ville(ville):
 def ajouter_contact(nom, email):
     contacts[nom.lower()] = email
 
-def definir_mot(mot):
-    try:
-        resultat = wikipedia.summary(mot, sentences=2)
-        print(f"Définition : {resultat}")
-        parle(f"Voici la définition de {mot} : {resultat}")
-    except wikipedia.exceptions.DisambiguationError as e:
-        parle(f"Le mot {mot} est ambigu. Peux-tu être plus précis ?")
-    except wikipedia.exceptions.PageError:
-        parle(f"Je n'ai pas trouvé de définition pour {mot}.")
-    except Exception as e:
-        parle("Erreur lors de la recherche de la définition.")
-
-
 def recherche_google():
     parle("Que veux-tu chercher sur Google ?")
     requete = ecoute()
@@ -154,7 +132,6 @@ def lire_email_specifique(nom):
         mail.select('inbox')
 
         adresse_recherche = contacts.get(nom.lower(), nom)
-
         result, data = mail.search(None, f'(FROM "{adresse_recherche}")')
         email_ids = data[0].split()
         if email_ids:
@@ -229,12 +206,6 @@ def traiter_commande(cmd):
         ville = ecoute()
         resultat = meteo_ville(ville)
         parle(resultat)
-    elif "définis" in cmd or "définition de" in cmd:
-        parle("Quel mot veux-tu que je définisse ?")
-        mot = ecoute()
-        if mot:
-            definir_mot(mot)
-
     elif "cherche" in cmd or "recherche" in cmd:
         recherche_google()
     elif "ça va" in cmd:
@@ -243,3 +214,4 @@ def traiter_commande(cmd):
         parle("Au revoir !")
     else:
         parle("Je n'ai pas compris la commande.")
+
