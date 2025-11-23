@@ -3,7 +3,7 @@ import threading
 import time
 from gtts import gTTS
 import os
-import pyttsx3 as ttx
+
 import random
 import datetime
 import pywhatkit
@@ -18,7 +18,8 @@ from email.mime.multipart import MIMEMultipart
 import smtplib
 import email
 import imaplib
-import streamlit as st
+from assistant import traiter_commande
+
 
 # Configurer wikipedia en français
 wikipedia.set_lang("fr")
@@ -35,9 +36,8 @@ def nettoyage_audio():
 nettoyage_audio()
 
 # Initialisation TTS
-engine = ttx.init()
-voice = engine.getProperty('voices')
-engine.setProperty('voice', voice[0].id)
+
+
 translator = Translator()
 listener = sr.Recognizer()
 
