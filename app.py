@@ -9,6 +9,7 @@ import random
 import time
 from gtts import gTTS
 from supabase import create_client, Client
+import assistant  # Import du nouveau fichier assistant.py
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
@@ -18,7 +19,7 @@ url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
 supabase: Client = create_client(url, key)
 
-# Fonctions de persistance avec Supabase
+# Fonctions de persistance avec Supabase (inchangées)
 def save_chat(username, chat_data):
     try:
         res = supabase.table("chats").insert({
@@ -36,15 +37,13 @@ def save_chat(username, chat_data):
             logging.error("Erreur lors de la sauvegarde du chat : pas de données retournées")
             return None
 
-        return res.data[0]["id"]  # Retourne l'ID du chat créé si succès
-
+        return res.data[0]["id"]
     except Exception as e:
         logging.error(f"Erreur save_chat: {e}")
         return None
 
 def load_chats(username):
     try:
-        # Charger tous les chats de l'utilisateur
         res_chats = supabase.table("chats").select("*").eq("username", username).execute()
         chats = {}
         chat_ids = []
@@ -58,7 +57,6 @@ def load_chats(username):
                 "created": row["created"]
             }
 
-        # Charger les messages associés à ces chats
         if chat_ids:
             res_messages = supabase.table("messages").select("*").in_("chat_id", chat_ids).execute()
 
@@ -71,7 +69,6 @@ def load_chats(username):
                         "timestamp": msg.get("timestamp", "")
                     })
 
-            # Trier les messages par ordre chronologique
             for chat_id in chats:
                 chats[chat_id]["messages"].sort(key=lambda x: x.get("timestamp", ""))
 
@@ -83,13 +80,12 @@ def load_chats(username):
 def delete_chat(chat_id):
     try:
         supabase.table("chats").delete().eq("id", chat_id).execute()
-        supabase.table("messages").delete().eq("chat_id", chat_id).execute()  # Supprime aussi les messages
+        supabase.table("messages").delete().eq("chat_id", chat_id).execute()
     except Exception as e:
         logging.error(f"Erreur delete_chat: {e}")
 
 def save_message(chat_id, sender, content):
     try:
-        # Si c’est un chat local (pas enregistré en DB), on ignore
         if not str(chat_id).isdigit():
             print(f"⚠️ Chat ID '{chat_id}' n’est pas valide, message non sauvegardé.")
             return
@@ -106,35 +102,15 @@ def save_message(chat_id, sender, content):
         if response.error:
             st.error(f"❌ Erreur Supabase lors de la sauvegarde du message : {response.error}")
         else:
-            print("Message sauvegardé en DB !")  # Pour déboguer, peut être retiré en prod
-
+            print("Message sauvegardé en DB !")
     except Exception as e:
         st.error(f"Erreur save_message: {e}")
 
-# Nouvelle fonction pour mettre à jour le nom du chat dans la DB
 def update_chat_name(chat_id, new_name):
     try:
         supabase.table("chats").update({"name": new_name}).eq("id", chat_id).execute()
     except Exception as e:
         logging.error(f"Erreur update_chat_name: {e}")
-
-# Fonctions pour TTS et animation (inspirées de votre code AYKIA)
-def parle(text):
-    """Synthèse vocale avec gTTS et animation de l'image."""
-    print("🤖:", text)
-    tts = gTTS(text=text, lang='fr')
-    nom_fichier = f"reponse_{int(time.time())}.mp3"
-    tts.save(nom_fichier)
-    
-    # Animation basée sur les voyelles (simulée via JS)
-    voyelles = [c for c in text.lower() if c in "aeioué"]
-    duree = len(text) * 0.06  # Durée approximative
-    
-    # Retourner les données pour JS
-    return nom_fichier, voyelles, duree
-
-def extraire_voyelles(text):
-    return [c for c in text.lower() if c in "aeioué"]
 
 # Nettoyage fichiers audio anciens
 def nettoyage_audio():
@@ -147,7 +123,7 @@ def nettoyage_audio():
 
 nettoyage_audio()
 
-# Configuration de la page (une seule fois au début)
+# Configuration de la page
 st.set_page_config(
     page_title="Amalia - Assistant IA",
     page_icon="🤖",
@@ -155,7 +131,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialisation de la session (une seule fois)
+# Initialisation de la session
 if "logged_user" not in st.session_state:
     st.session_state.logged_user = None
 if "logged_in" not in st.session_state:
@@ -168,7 +144,6 @@ if "chats" not in st.session_state:
     st.session_state.chats = {}
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
-# Nouveaux états pour le carnet secret
 if "show_journal" not in st.session_state:
     st.session_state.show_journal = False
 if "journal_accessed" not in st.session_state:
@@ -176,19 +151,21 @@ if "journal_accessed" not in st.session_state:
 if "journal_data" not in st.session_state:
     st.session_state.journal_data = None
 if "create_journal_step" not in st.session_state:
-    st.session_state.create_journal_step = 0  # 0: rien, 1: couleur, 2: nom, 3: code
+    st.session_state.create_journal_step = 0
 if "journal_temp" not in st.session_state:
     st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
-# Nouveaux états pour le chat avec personnages
 if "show_character_chat" not in st.session_state:
     st.session_state.show_character_chat = False
-# États pour l'animation et TTS
 if "current_audio" not in st.session_state:
     st.session_state.current_audio = None
 if "expression" not in st.session_state:
     st.session_state.expression = "neutre"
+if "show_assistant" not in st.session_state:
+    st.session_state.show_assistant = False
+if "voice_input" not in st.session_state:
+    st.session_state.voice_input = ""
 
-# Fonction pour obtenir la réponse du personnage (déplacée ici pour éviter NameError)
+# Fonction pour obtenir la réponse du personnage
 def get_character_response(user_input, character_prompt, chat_history):
     api_key = st.secrets.get("GROQ_API_KEY", "")
     if not api_key:
@@ -225,7 +202,6 @@ def get_character_response(user_input, character_prompt, chat_history):
 if not st.session_state.logged_in:
     st.sidebar.title("Connexion")
     
-    # Boutons pour afficher les formulaires (avec clés uniques)
     if st.sidebar.button("Se connecter", key="show_login_btn"):
         st.session_state.show_login = True
         st.session_state.show_register = False
@@ -234,7 +210,6 @@ if not st.session_state.logged_in:
         st.session_state.show_register = True
         st.session_state.show_login = False
     
-    # Formulaire de connexion
     if st.session_state.show_login:
         st.sidebar.subheader("Connexion")
         username = st.sidebar.text_input("Nom d'utilisateur", key="login_username")
@@ -256,18 +231,16 @@ if not st.session_state.logged_in:
                         st.session_state.chats[str(chat_db_id)] = chat_data
                         st.session_state.current_chat_id = str(chat_db_id)
                     else:
-                        # Fallback local si DB échoue
                         local_id = "local_1"
                         st.session_state.chats[local_id] = chat_data
                         st.session_state.current_chat_id = local_id
                         st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase. Les chats sont temporaires.")
                 else:
                     st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
-                st.rerun()  # Force rerun pour afficher le chat
+                st.rerun()
             else:
                 st.sidebar.error("Nom d'utilisateur ou mot de passe incorrect")
     
-    # Formulaire d'inscription
     if st.session_state.show_register:
         st.sidebar.subheader("Créer un compte")
         new_user = st.sidebar.text_input("Nouveau nom d'utilisateur", key="register_username")
@@ -279,9 +252,9 @@ if not st.session_state.logged_in:
             else:
                 st.sidebar.error("Erreur lors de la création du compte (utilisateur existe déjà ou champs vides).")
     
-    st.stop()  # Arrête l'app si pas connecté
+    st.stop()
 
-# Logique après connexion : Vérifier et créer un chat par défaut si nécessaire
+# Logique après connexion
 if not st.session_state.chats or st.session_state.current_chat_id not in st.session_state.chats:
     chat_data = {
         "name": "Nouveau Chat",
@@ -293,13 +266,10 @@ if not st.session_state.chats or st.session_state.current_chat_id not in st.sess
         st.session_state.chats[str(chat_db_id)] = chat_data
         st.session_state.current_chat_id = str(chat_db_id)
     else:
-        # Fallback local
         local_id = f"local_{len(st.session_state.chats) + 1}"
         st.session_state.chats[local_id] = chat_data
         st.session_state.current_chat_id = local_id
         st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase")
-
-# Suite du code pour app.py (continuation après la logique de connexion/inscription)
 
 # Sidebar après connexion
 st.sidebar.success(f"Connecté en tant que {st.session_state.logged_user}")
@@ -307,12 +277,20 @@ if st.sidebar.button("Carnet Secret", key="journal_btn"):
     st.session_state.show_journal = True
     st.session_state.journal_accessed = False
     st.session_state.create_journal_step = 0
-    st.session_state.show_character_chat = False  # Désactiver les autres modes
+    st.session_state.show_character_chat = False
+    st.session_state.show_assistant = False
     st.rerun()
 
 if st.sidebar.button("Conversation avec Personnage", key="character_chat_btn"):
     st.session_state.show_character_chat = True
-    st.session_state.show_journal = False  # Désactiver les autres modes
+    st.session_state.show_journal = False
+    st.session_state.show_assistant = False
+    st.rerun()
+
+if st.sidebar.button("Assistant Vocal", key="assistant_btn"):
+    st.session_state.show_assistant = True
+    st.session_state.show_journal = False
+    st.session_state.show_character_chat = False
     st.rerun()
 
 if st.sidebar.button("Déconnexion", key="logout_btn"):
@@ -328,15 +306,14 @@ if st.sidebar.button("Déconnexion", key="logout_btn"):
     st.session_state.create_journal_step = 0
     st.session_state.journal_temp = {"color": "", "name": "", "code": "", "confirm_code": ""}
     st.session_state.show_character_chat = False
+    st.session_state.show_assistant = False
     st.rerun()
 
 # Logique conditionnelle pour les modes
 if st.session_state.show_journal and st.session_state.logged_in:
-    # Interface du Carnet Secret
     st.title("🔒 Carnet Secret")
     
     if not has_secret_journal(st.session_state.logged_user):
-        # Pas de carnet : proposer de créer
         if st.session_state.create_journal_step == 0:
             if st.button("Créer un nouveau carnet secret", key="create_journal_btn"):
                 st.session_state.create_journal_step = 1
@@ -372,7 +349,6 @@ if st.session_state.show_journal and st.session_state.logged_in:
                 else:
                     st.error("Codes ne correspondent pas ou ne sont pas des chiffres.")
     else:
-        # Carnet existe : demander le code ou afficher l'interface
         if not st.session_state.journal_accessed:
             st.subheader("Entrez le code de votre carnet secret")
             code = st.text_input("Code (chiffres)", type="password")
@@ -384,7 +360,6 @@ if st.session_state.show_journal and st.session_state.logged_in:
                 else:
                     st.error("Code incorrect.")
         else:
-            # Interface du carnet : éditeur avec pages
             journal = st.session_state.journal_data
             st.markdown(f"<h2 style='color: {journal['color']};'>{journal['name']}</h2>", unsafe_allow_html=True)
             
@@ -393,7 +368,6 @@ if st.session_state.show_journal and st.session_state.logged_in:
             selected_page = st.selectbox("Sélectionnez une page", page_options)
             page_index = page_options.index(selected_page)
             
-            # Éditeur de la page
             title = st.text_input("Titre de la page", value=pages[page_index]["title"])
             content = st.text_area("Contenu", value=pages[page_index]["content"], height=300)
             
@@ -413,34 +387,28 @@ if st.session_state.show_journal and st.session_state.logged_in:
         st.rerun()
 
 elif st.session_state.show_character_chat and st.session_state.logged_in:
-    # Interface du Chat avec Personnages (intégrée directement)
     st.title("💬 Conversation avec ton Personnage")
     
-    # Initialisation des états de session pour ce module
     if "selected_character" not in st.session_state:
         st.session_state.selected_character = None
     if "character_chat_history" not in st.session_state:
         st.session_state.character_chat_history = []
     
-    # Définition des personnages (ajoute-en plus tard)
     characters = {
         "AYKIA": {
             "name": "AYKIA",
             "description": "Une assistante IA espiègle et amicale, toujours prête à discuter et à aider !",
             "prompt": "Tu es AYKIA, une assistante IA conviviale, espiègle et professionnelle. Réponds de manière fun et engageante.",
             "image_folder": "characters/aykia/",
-            "default_image": "neutral.png"  # Image par défaut
-        },
-        # Ajoute d'autres personnages ici
+            "default_image": "neutral.png"
+        }
     }
     
-    # Étape 1 : Sélection du personnage
     if st.session_state.selected_character is None:
         st.subheader("Choisis ton personnage pour commencer la conversation !")
         cols = st.columns(len(characters))
         for i, (key, char) in enumerate(characters.items()):
             with cols[i]:
-                # Afficher l'image du personnage
                 image_path = os.path.join(char["image_folder"], char["default_image"])
                 if os.path.exists(image_path):
                     st.image(image_path, width=150, caption=char["name"])
@@ -448,58 +416,130 @@ elif st.session_state.show_character_chat and st.session_state.logged_in:
                     st.write(f"Image non trouvée pour {char['name']}")
                 if st.button(f"Choisir {char['name']}", key=f"select_{key}"):
                     st.session_state.selected_character = key
-                    st.session_state.character_chat_history = []  # Reset l'historique
+                    st.session_state.character_chat_history = []
                     st.rerun()
     
-    # Étape 2 : Conversation avec le personnage sélectionné
     else:
         char = characters[st.session_state.selected_character]
         st.subheader(f"Conversation avec {char['name']}")
         st.write(char["description"])
         
-        # Afficher l'image animée du personnage (si GIF, elle s'anime automatiquement)
         image_path = os.path.join(char["image_folder"], char["default_image"])
         if os.path.exists(image_path):
             st.image(image_path, width=200)
         
-        # Afficher l'historique des messages
         for msg in st.session_state.character_chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        # Input pour le message utilisateur
         if prompt := st.chat_input(f"Parle à {char['name']}..."):
-            # Ajouter le message utilisateur
             st.session_state.character_chat_history.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             
-            # Obtenir la réponse du personnage
             response = get_character_response(prompt, char["prompt"], st.session_state.character_chat_history[:-1])
             
-            # Ajouter la réponse
             st.session_state.character_chat_history.append({"role": "assistant", "content": response})
             with st.chat_message("assistant"):
                 st.markdown(response)
             
             st.rerun()
         
-        # Bouton pour changer de personnage
         if st.button("Changer de personnage", key="change_character_btn"):
             st.session_state.selected_character = None
             st.session_state.character_chat_history = []
             st.rerun()
         
-        # Bouton pour retourner au chat normal
         if st.button("Retour au chat Amalia", key="return_to_amalia_from_character"):
             st.session_state.selected_character = None
             st.session_state.character_chat_history = []
             st.session_state.show_character_chat = False
             st.rerun()
 
+elif st.session_state.show_assistant and st.session_state.logged_in:
+    st.title("🎤 Assistant Vocal")
+    st.markdown("""
+    <div style="display: flex; justify-content: center; align-items: center; height: 400px;">
+        <svg width="200" height="200">
+            <circle cx="100" cy="100" r="90" fill="#10a37f" stroke="#0d8a6d" stroke-width="10"/>
+            <text x="100" y="110" text-anchor="middle" fill="white" font-size="20" font-family="Arial">Assistant</text>
+        </svg>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("Appuie sur le micro pour parler à l'assistant vocal.")
+    
+    # Bouton micro pour capturer la voix
+    mic_html = """
+    <div style="margin-top: 20px; text-align: center;">
+        <button id="micBtn" style="
+            background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            width: 60px;
+            height: 60px;
+        ">🎤</button>
+        <div id="status" style="font-size: 12px; margin-top: 8px; color: #666;"></div>
+    </div>
+
+    <script>
+    const micBtn = document.getElementById('micBtn');
+    const status = document.getElementById('status');
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'fr-FR';
+        recognition.continuous = false;
+
+        micBtn.onclick = function() {
+            recognition.start();
+            micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
+            micBtn.textContent = '⏺️';
+            status.textContent = 'Écoute...';
+        };
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+            micBtn.textContent = '🎤';
+            status.textContent = '✓ Commande reçue';
+            
+            // Envoyer la transcription à Streamlit
+            fetch(window.location.href, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({voice_input: transcript})
+            }).then(() => window.location.reload());
+        };
+
+        recognition.onerror = function() {
+            status.textContent = '❌ Erreur';
+            micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+            micBtn.textContent = '🎤';
+        };
+    } else {
+        status.textContent = 'Non supporté';
+    }
+    </script>
+    """
+    st.components.v1.html(mic_html, height=100)
+    
+    # Traiter la commande vocale si reçue
+    if st.session_state.voice_input:
+        assistant.traiter_commande(st.session_state.voice_input)
+        st.session_state.voice_input = ""  # Reset après traitement
+    
+    if st.button("Retour au chat Amalia", key="return_to_amalia_from_assistant"):
+        st.session_state.show_assistant = False
+        st.rerun()
+
 else:
-    # Interface de chat normale (Amalia)
-    # CSS
     st.markdown("""
     <style>
         .main {
@@ -528,210 +568,65 @@ else:
             cursor: pointer;
             background: #f7f7f8;
             border: 1px solid #e5e5e5;
-            transition: all 0.2s;
+            transition: all 0.
+            transition: all 0.2s ease;
         }
-                .chat-item:hover {
-            background: #ececf1;
+        .chat-item:hover {
+            background: #e2e2e5;
         }
         .chat-item.active {
-            background: #d1d5db;
-            border-color: #10a37f;
+            background: #10a37f;
+            color: white;
         }
     </style>
-    """, unsafe_allow_html=True)
+    """ , unsafe_allow_html=True)
 
-    st.title("🤖 Amalia")
+# Affichage du chat principal Amalia
+st.title("💬 Chat Amalia")
 
-    # Fonction pour obtenir la réponse
-    def get_response(user_input, chat_id):
-        api_key = st.secrets.get("GROQ_API_KEY", "")
-        
-        if not api_key:
-            return "⚠️ Clé API manquante"
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        
-        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
-        
-        for msg in st.session_state.chats[chat_id]["messages"]:
-            messages.append({"role": msg["role"], "content": msg["content"]})
-        
-        messages.append({"role": "user", "content": user_input})
-        
-        data = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": messages,
-            "temperature": 0.7
-        }
-        
-        try:
-            resp = requests.post(url, headers=headers, json=data)
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"]
-            else:
-                return f"Erreur {resp.status_code}"
-        except Exception as e:
-            return f"Erreur: {str(e)}"
+chat_ids = list(st.session_state.chats.keys())
+cols = st.columns([3, 7])
 
-    # Sidebar avec historique des chats
-    with st.sidebar:
-        st.markdown("### 💬 Historique")
-        
-        if st.button("➕ Nouveau Chat", key="new_chat_btn", use_container_width=True, type="primary"):
-            chat_data = {
-                "name": "Nouveau Chat",
-                "messages": [],
-                "created": datetime.now().strftime("%d/%m/%Y %H:%M")
-            }
-            chat_db_id = save_chat(st.session_state.logged_user, chat_data)
-            if chat_db_id:
-                st.session_state.chats[str(chat_db_id)] = chat_data
-                st.session_state.current_chat_id = str(chat_db_id)
-            else:
-                # Fallback local
-                local_id = f"local_{len(st.session_state.chats) + 1}"
-                st.session_state.chats[local_id] = chat_data
-                st.session_state.current_chat_id = local_id
+# Liste des chats à gauche
+with cols[0]:
+    st.subheader("Chats")
+    for chat_id in chat_ids:
+        chat_name = st.session_state.chats[chat_id]["name"]
+        if st.button(chat_name, key=f"select_chat_{chat_id}"):
+            st.session_state.current_chat_id = chat_id
             st.rerun()
-        
-        st.markdown("---")
-        
-        sorted_chats = sorted(
-            st.session_state.chats.items(),
-            key=lambda x: x[1]["created"],
-            reverse=True
-        )
-        
-        for chat_id, chat_data in sorted_chats:
-            if len(chat_data["messages"]) > 0:
-                first_msg = chat_data["messages"][0]["content"]
-                chat_name = first_msg[:30] + "..." if len(first_msg) > 30 else first_msg
-            else:
-                chat_name = "Nouveau Chat"
-            
-            is_active = chat_id == st.session_state.current_chat_id
-            if st.button(
-                f"{'📌' if is_active else '💬'} {chat_name}",
-                key=f"chat_{chat_id}",
-                use_container_width=True,
-                type="secondary" if is_active else "tertiary"
-            ):
-                st.session_state.current_chat_id = chat_id
-                st.rerun()
-        
-        st.markdown("---")
-        st.markdown("### 📊 Stats")
-        st.metric("Total chats", len(st.session_state.chats))
-        # Vérification de sécurité avant d'accéder à current_chat
-        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-            current_chat = st.session_state.chats[st.session_state.current_chat_id]
-            st.metric("Messages", len(current_chat["messages"]))
-        else:
-            st.metric("Messages", 0)
-
-    # Afficher les messages (avec vérification de sécurité)
-    if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-        current_chat = st.session_state.chats[st.session_state.current_chat_id]
-        
-        for message in current_chat["messages"]:
-            with st.chat_message(message["role"]):
-                st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
-    else:
-        st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
-
-    # Bouton micro et input
-    col1, col2 = st.columns([1, 10])
-
-    with col1:
-        mic_html = """
-        <div style="margin-top: 8px;">
-            <button id="micBtn" style="
-                background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
-                color: white;
-                border: none;
-                padding: 12px;
-                border-radius: 50%;
-                cursor: pointer;
-                font-size: 20px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                width: 50px;
-                height: 50px;
-            ">🎤</button>
-            <div id="status" style="font-size: 10px; text-align: center; margin-top: 4px; color: #666;"></div>
-        </div>
-
-        <script>
-        const micBtn = document.getElementById('micBtn');
-        const status = document.getElementById('status');
-
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'fr-FR';
-
-            micBtn.onclick = function() {
-                recognition.start();
-                micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
-                micBtn.textContent = '⏺️';
-                status.textContent = 'Écoute...';
-            };
-
-            recognition.onresult = function(event) {
-                const transcript = event.results[0][0].transcript;
-                micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-                micBtn.textContent = '🎤';
-                status.textContent = '✓';
-                
-                const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-                if (chatInput) {
-                    chatInput.value = transcript;
-                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    window.parent.sessionStorage.setItem('voiceMode', 'true');
-                }
-            };
-
-            recognition.onerror = function() {
-                status.textContent = '❌';
-                micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
-                micBtn.textContent = '🎤';
-            };
-        } else {
-            status.textContent = 'Non supporté';
+    if st.button("Nouveau chat", key="new_chat_btn"):
+        chat_data = {
+            "name": f"Nouveau Chat {len(st.session_state.chats)+1}",
+            "messages": [],
+            "created": datetime.now().strftime("%d/%m/%Y %H:%M")
         }
-        </script>
-        """
-        st.components.v1.html(mic_html, height=80)
+        chat_db_id = save_chat(st.session_state.logged_user, chat_data)
+        if chat_db_id:
+            st.session_state.chats[str(chat_db_id)] = chat_data
+            st.session_state.current_chat_id = str(chat_db_id)
+        else:
+            local_id = f"local_{len(st.session_state.chats)+1}"
+            st.session_state.chats[local_id] = chat_data
+            st.session_state.current_chat_id = local_id
+            st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase")
+        st.rerun()
 
-    with col2:
-        # Input de chat
-        if prompt := st.chat_input("Message Amalia..."):
-            # Vérifier que le chat existe avant d'ajouter
-            if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
-                current_chat = st.session_state.chats[st.session_state.current_chat_id]
-                
-                # Ajouter message utilisateur
-                current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "user", prompt)
-                
-                # Afficher message utilisateur
-                with st.chat_message("user"):
-                    st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
-                
-                # Obtenir la réponse de l'IA
-                response = get_response(prompt, st.session_state.current_chat_id)
-                
-                # Ajouter le message de l'assistante
-                current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "assistant", response)
-                
-                # Afficher le message de l'assistante
-                with st.chat_message("assistant"):
-                    st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
-                
-                st.rerun()  # Recharger la page pour mettre à jour l'affichage
+# Messages du chat sélectionné à droite
+with cols[1]:
+    if st.session_state.current_chat_id:
+        chat_data = st.session_state.chats[st.session_state.current_chat_id]
+        for msg in chat_data["messages"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+        
+        if prompt := st.chat_input("Écris un message..."):
+            chat_data["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
+            save_message(st.session_state.current_chat_id, "user", prompt)
+
+            # Générer une réponse simple pour Amalia
+            response = f"Amalia répond : {prompt[::-1]}"  # Exemple de réponse inversée pour test
+            chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
+            save_message(st.session_state.current_chat_id, "assistant", response)
+            st.rerun()
 
