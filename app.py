@@ -9,7 +9,8 @@ import random
 import time
 from gtts import gTTS
 from supabase import create_client, Client
-import assistant  # Import du nouveau fichier assistant.py
+from assistant import traiter_commande
+  # Import du nouveau fichier assistant.py
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
@@ -530,11 +531,10 @@ elif st.session_state.show_assistant and st.session_state.logged_in:
     """
     st.components.v1.html(mic_html, height=100)
     
-    # Traiter la commande vocale si reçue
-    if st.session_state.voice_input:
-        assistant.traiter_commande(st.session_state.voice_input)
-        st.session_state.voice_input = ""  # Reset après traitement
-        traiter_commande(st.session_state.voice_input)
+    #if st.session_state.voice_input:
+    traiter_commande(st.session_state.voice_input)
+    st.session_state.voice_input = ""
+
     
     if st.button("Retour au chat Amalia", key="return_to_amalia_from_assistant"):
         st.session_state.show_assistant = False
@@ -630,6 +630,7 @@ with cols[1]:
             chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
             save_message(st.session_state.current_chat_id, "assistant", response)
             st.rerun()
+
 
 
 
