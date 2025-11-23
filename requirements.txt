@@ -1,11 +1,12 @@
 streamlit
 requests
 gtts
-googletrans==4.0.0rc1  # Version récente pour éviter les bugs
+
 wikipedia
 feedparser
 SpeechRecognition  # Note : C'est "SpeechRecognition" (majuscules) pour pip
 supabase 
    
    
+
 
