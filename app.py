@@ -9,18 +9,17 @@ import random
 import time
 from gtts import gTTS
 from supabase import create_client, Client
-from assistant import traiter_commande
-  # Import du nouveau fichier assistant.py
+from assistant import traiter_commande  # Import du fichier assistant.py pour l'assistant vocal
 
 # Configuration du logging pour les erreurs
 logging.basicConfig(level=logging.ERROR)
 
-# Configuration Supabase (réutilisez celle de auth.py)
+# Configuration Supabase
 url = "https://eyffbmbmwdhrzzcboawu.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5ZmZibWJtd2Rocnp6Y2JvYXd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc2NzksImV4cCI6MjA3NzI0MzY3OX0.iSfIDxTpdnwAdSSzjo6tFOZJs8ZQGY5DE50TIo2_79I"
 supabase: Client = create_client(url, key)
 
-# Fonctions de persistance avec Supabase (inchangées)
+# Fonctions de persistance avec Supabase
 def save_chat(username, chat_data):
     try:
         res = supabase.table("chats").insert({
@@ -113,6 +112,21 @@ def update_chat_name(chat_id, new_name):
     except Exception as e:
         logging.error(f"Erreur update_chat_name: {e}")
 
+# Fonctions pour TTS et animation
+def parle(text):
+    print("🤖:", text)
+    tts = gTTS(text=text, lang='fr')
+    nom_fichier = f"reponse_{int(time.time())}.mp3"
+    tts.save(nom_fichier)
+    
+    voyelles = [c for c in text.lower() if c in "aeioué"]
+    duree = len(text) * 0.06
+    
+    return nom_fichier, voyelles, duree
+
+def extraire_voyelles(text):
+    return [c for c in text.lower() if c in "aeioué"]
+
 # Nettoyage fichiers audio anciens
 def nettoyage_audio():
     for f in os.listdir():
@@ -181,6 +195,39 @@ def get_character_response(user_input, character_prompt, chat_history):
     
     messages = [{"role": "system", "content": character_prompt}]
     for msg in chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_input})
+    
+    data = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": messages,
+        "temperature": 0.7
+    }
+    
+    try:
+        resp = requests.post(url, headers=headers, json=data)
+        if resp.status_code == 200:
+            return resp.json()["choices"][0]["message"]["content"]
+        else:
+            return f"Erreur {resp.status_code}"
+    except Exception as e:
+        return f"Erreur: {str(e)}"
+
+# Fonction pour obtenir la réponse d'Amalia
+def get_response(user_input, chat_id):
+    api_key = st.secrets.get("GROQ_API_KEY", "")
+    if not api_key:
+        return "⚠️ Clé API manquante"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    
+    messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
+    for msg in st.session_state.chats[chat_id]["messages"]:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": user_input})
     
@@ -383,7 +430,7 @@ if st.session_state.show_journal and st.session_state.logged_in:
                 save_journal_content(st.session_state.logged_user, journal["content"])
                 st.rerun()
     
-    if st.button("Retour au chat", key="return_to_chat_from_journal"):
+        if st.button("Retour au chat", key="return_to_chat_from_journal"):
         st.session_state.show_journal = False
         st.rerun()
 
@@ -531,10 +578,9 @@ elif st.session_state.show_assistant and st.session_state.logged_in:
     """
     st.components.v1.html(mic_html, height=100)
     
-    #if st.session_state.voice_input:
-    traiter_commande(st.session_state.voice_input)
-    st.session_state.voice_input = ""
-
+    if st.session_state.voice_input:
+        traiter_commande(st.session_state.voice_input)
+        st.session_state.voice_input = ""
     
     if st.button("Retour au chat Amalia", key="return_to_amalia_from_assistant"):
         st.session_state.show_assistant = False
@@ -569,7 +615,6 @@ else:
             cursor: pointer;
             background: #f7f7f8;
             border: 1px solid #e5e5e5;
-            transition: all 0.
             transition: all 0.2s ease;
         }
         .chat-item:hover {
@@ -582,54 +627,54 @@ else:
     </style>
     """ , unsafe_allow_html=True)
 
-# Affichage du chat principal Amalia
-st.title("💬 Chat Amalia")
+    # Affichage du chat principal Amalia
+    st.title("💬 Chat Amalia")
 
-chat_ids = list(st.session_state.chats.keys())
-cols = st.columns([3, 7])
+    chat_ids = list(st.session_state.chats.keys())
+    cols = st.columns([3, 7])
 
-# Liste des chats à gauche
-with cols[0]:
-    st.subheader("Chats")
-    for chat_id in chat_ids:
-        chat_name = st.session_state.chats[chat_id]["name"]
-        if st.button(chat_name, key=f"select_chat_{chat_id}"):
-            st.session_state.current_chat_id = chat_id
+    # Liste des chats à gauche
+    with cols[0]:
+        st.subheader("Chats")
+        for chat_id in chat_ids:
+            chat_name = st.session_state.chats[chat_id]["name"]
+            if st.button(chat_name, key=f"select_chat_{chat_id}"):
+                st.session_state.current_chat_id = chat_id
+                st.rerun()
+        if st.button("Nouveau chat", key="new_chat_btn"):
+            chat_data = {
+                "name": f"Nouveau Chat {len(st.session_state.chats)+1}",
+                "messages": [],
+                "created": datetime.now().strftime("%d/%m/%Y %H:%M")
+            }
+            chat_db_id = save_chat(st.session_state.logged_user, chat_data)
+            if chat_db_id:
+                st.session_state.chats[str(chat_db_id)] = chat_data
+                st.session_state.current_chat_id = str(chat_db_id)
+            else:
+                local_id = f"local_{len(st.session_state.chats)+1}"
+                st.session_state.chats[local_id] = chat_data
+                st.session_state.current_chat_id = local_id
+                st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase")
             st.rerun()
-    if st.button("Nouveau chat", key="new_chat_btn"):
-        chat_data = {
-            "name": f"Nouveau Chat {len(st.session_state.chats)+1}",
-            "messages": [],
-            "created": datetime.now().strftime("%d/%m/%Y %H:%M")
-        }
-        chat_db_id = save_chat(st.session_state.logged_user, chat_data)
-        if chat_db_id:
-            st.session_state.chats[str(chat_db_id)] = chat_data
-            st.session_state.current_chat_id = str(chat_db_id)
-        else:
-            local_id = f"local_{len(st.session_state.chats)+1}"
-            st.session_state.chats[local_id] = chat_data
-            st.session_state.current_chat_id = local_id
-            st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase")
-        st.rerun()
 
-# Messages du chat sélectionné à droite
-with cols[1]:
-    if st.session_state.current_chat_id:
-        chat_data = st.session_state.chats[st.session_state.current_chat_id]
-        for msg in chat_data["messages"]:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-        
-        if prompt := st.chat_input("Écris un message..."):
-            chat_data["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
-            save_message(st.session_state.current_chat_id, "user", prompt)
+    # Messages du chat sélectionné à droite
+    with cols[1]:
+        if st.session_state.current_chat_id:
+            chat_data = st.session_state.chats[st.session_state.current_chat_id]
+            for msg in chat_data["messages"]:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+            
+            if prompt := st.chat_input("Écris un message..."):
+                chat_data["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "user", prompt)
 
-            # Générer une réponse simple pour Amalia
-            response = f"Amalia répond : {prompt[::-1]}"  # Exemple de réponse inversée pour test
-            chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
-            save_message(st.session_state.current_chat_id, "assistant", response)
-            st.rerun()
+                # Générer une réponse simple pour Amalia
+                response = f"Amalia répond : {prompt[::-1]}"  # Exemple de réponse inversée pour test
+                chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "assistant", response)
+                st.rerun()
 
 
 
