@@ -1,21 +1,11 @@
 streamlit
 requests
-bcrypt
-supabase
-gTTS
-SpeechRecognition
-pydub
-
-streamlit
-requests
 gtts
-googletrans==4.0.0rc1  
+googletrans==4.0.0rc1  # Version récente pour éviter les bugs
 wikipedia
 feedparser
-speechrecognition  
-imaplib3  
-smtplib
-email  
+SpeechRecognition  # Note : C'est "SpeechRecognition" (majuscules) pour pip
 supabase 
    
    
+
