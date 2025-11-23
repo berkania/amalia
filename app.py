@@ -534,6 +534,7 @@ elif st.session_state.show_assistant and st.session_state.logged_in:
     if st.session_state.voice_input:
         assistant.traiter_commande(st.session_state.voice_input)
         st.session_state.voice_input = ""  # Reset après traitement
+        traiter_commande(st.session_state.voice_input)
     
     if st.button("Retour au chat Amalia", key="return_to_amalia_from_assistant"):
         st.session_state.show_assistant = False
@@ -629,5 +630,6 @@ with cols[1]:
             chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
             save_message(st.session_state.current_chat_id, "assistant", response)
             st.rerun()
+
 
 
