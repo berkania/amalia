@@ -172,45 +172,21 @@ def repondre_email(adresse, sujet):
         envoyer_mail(adresse, f"Re: {sujet}", corps)
     else:
         parle("D'accord, je ne vais pas envoyer le mail.")
-
 def traiter_commande(cmd):
-    """Traite une commande vocale."""
+    """Traite une commande vocale et retourne le texte à dire."""
     if not cmd:
-        return
+        return ""
     elif "bonjour" in cmd:
-        parle("Bonjour !")
+        return "Bonjour !"
     elif "envoie un mail" in cmd:
-        parle("À qui voulez-vous envoyer le mail ?")
-        nom = ecoute()
-        email_dest = contacts.get(nom.strip().lower())
-        if not email_dest:
-            parle("Je ne connais pas cette personne.")
-            return
-        parle("Quel est le sujet du mail ?")
-        sujet = ecoute()
-        parle("Quel est le message ?")
-        corps = ecoute()
-        envoyer_mail(email_dest, sujet, corps)
-    elif "lire le mail de" in cmd:
-        expediteur = cmd.split("lire le mail de")[-1].strip()
-        lire_email_specifique(expediteur)
-    elif "répondre au mail de" in cmd:
-        expediteur = cmd.split("répondre au mail de")[-1].strip()
-        lire_email_specifique(expediteur)
+        return "Je ne peux pas envoyer le mail ici, mais je peux te guider."
     elif "les infos" in cmd or "actualités" in cmd:
-        parle("Voici les actualités du jour.")
-        lire_actualites()
+        return "Voici les actualités du jour."
     elif "météo" in cmd or "temps" in cmd:
-        parle("Pour quelle ville veux-tu la météo ?")
-        ville = ecoute()
-        resultat = meteo_ville(ville)
-        parle(resultat)
-    elif "cherche" in cmd or "recherche" in cmd:
-        recherche_google()
-    elif "ça va" in cmd:
-        parle("Je vais très bien, merci ! En quoi puis-je vous aider aujourd'hui ?")
+        return "Je peux te donner la météo si tu me dis la ville."
     elif "stop" in cmd or "au revoir" in cmd:
-        parle("Au revoir !")
+        return "Au revoir !"
     else:
-        parle("Je n'ai pas compris la commande.")
+        return "Je n'ai pas compris la commande."
+
 
