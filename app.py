@@ -578,9 +578,19 @@ elif st.session_state.show_assistant and st.session_state.logged_in:
     """
     st.components.v1.html(mic_html, height=100)
     
-    if st.session_state.voice_input:
-        traiter_commande(st.session_state.voice_input)
-        st.session_state.voice_input = ""
+if st.session_state.voice_input:
+    cmd = st.session_state.voice_input
+    st.session_state.voice_input = ""
+
+    # Traiter la commande et récupérer la réponse texte
+    response_text = traiter_commande(cmd)
+    if response_text:
+        tts = gTTS(text=response_text, lang='fr')
+        nom_fichier = f"reponse_{int(time.time())}.mp3"
+        tts.save(nom_fichier)
+        st.audio(nom_fichier, format="audio/mp3", start_time=0)
+        threading.Timer(5, lambda: os.remove(nom_fichier)).start()
+
     
     if st.button("Retour au chat Amalia", key="return_to_amalia_from_assistant"):
         st.session_state.show_assistant = False
@@ -823,4 +833,5 @@ else:
                     st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
                 
                 st.rerun()  # Recharger la page pour mettre à jour l'affichage
+
 
