@@ -431,8 +431,8 @@ if st.session_state.show_journal and st.session_state.logged_in:
                 st.rerun()
     
         if st.button("Retour au chat", key="return_to_chat_from_journal"):
-        st.session_state.show_journal = False
-        st.rerun()
+            st.session_state.show_journal = False
+            st.rerun()
 
 elif st.session_state.show_character_chat and st.session_state.logged_in:
     st.title("💬 Conversation avec ton Personnage")
@@ -675,6 +675,7 @@ else:
                 chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
                 save_message(st.session_state.current_chat_id, "assistant", response)
                 st.rerun()
+
 
 
 
