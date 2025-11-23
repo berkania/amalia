@@ -587,6 +587,8 @@ elif st.session_state.show_assistant and st.session_state.logged_in:
         st.rerun()
 
 else:
+    # Interface de chat normale (Amalia)
+    # CSS
     st.markdown("""
     <style>
         .main {
@@ -615,35 +617,63 @@ else:
             cursor: pointer;
             background: #f7f7f8;
             border: 1px solid #e5e5e5;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
         }
-        .chat-item:hover {
-            background: #e2e2e5;
+                .chat-item:hover {
+            background: #ececf1;
         }
         .chat-item.active {
-            background: #10a37f;
-            color: white;
+            background: #d1d5db;
+            border-color: #10a37f;
         }
     </style>
-    """ , unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-    # Affichage du chat principal Amalia
-    st.title("💬 Chat Amalia")
+    st.title("🤖 Amalia")
 
-    chat_ids = list(st.session_state.chats.keys())
-    cols = st.columns([3, 7])
+    # Fonction pour obtenir la réponse
+    def get_response(user_input, chat_id):
+        api_key = st.secrets.get("GROQ_API_KEY", "")
+        
+        if not api_key:
+            return "⚠️ Clé API manquante"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        messages = [{"role": "system", "content": "Tu es Amalia, une assistante IA conviviale et professionnelle."}]
+        
+        for msg in st.session_state.chats[chat_id]["messages"]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        messages.append({"role": "user", "content": user_input})
+        
+        data = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": messages,
+            "temperature": 0.7
+        }
+        
+        try:
+            resp = requests.post(url, headers=headers, json=data)
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"]
+            else:
+                return f"Erreur {resp.status_code}"
+        except Exception as e:
+            return f"Erreur: {str(e)}"
 
-    # Liste des chats à gauche
-    with cols[0]:
-        st.subheader("Chats")
-        for chat_id in chat_ids:
-            chat_name = st.session_state.chats[chat_id]["name"]
-            if st.button(chat_name, key=f"select_chat_{chat_id}"):
-                st.session_state.current_chat_id = chat_id
-                st.rerun()
-        if st.button("Nouveau chat", key="new_chat_btn"):
+    # Sidebar avec historique des chats
+    with st.sidebar:
+        st.markdown("### 💬 Historique")
+        
+        if st.button("➕ Nouveau Chat", key="new_chat_btn", use_container_width=True, type="primary"):
             chat_data = {
-                "name": f"Nouveau Chat {len(st.session_state.chats)+1}",
+                "name": "Nouveau Chat",
                 "messages": [],
                 "created": datetime.now().strftime("%d/%m/%Y %H:%M")
             }
@@ -652,31 +682,145 @@ else:
                 st.session_state.chats[str(chat_db_id)] = chat_data
                 st.session_state.current_chat_id = str(chat_db_id)
             else:
-                local_id = f"local_{len(st.session_state.chats)+1}"
+                # Fallback local
+                local_id = f"local_{len(st.session_state.chats) + 1}"
                 st.session_state.chats[local_id] = chat_data
                 st.session_state.current_chat_id = local_id
-                st.warning("⚠️ Persistance désactivée : vérifiez vos tables Supabase")
             st.rerun()
-
-    # Messages du chat sélectionné à droite
-    with cols[1]:
-        if st.session_state.current_chat_id:
-            chat_data = st.session_state.chats[st.session_state.current_chat_id]
-            for msg in chat_data["messages"]:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
+        
+        st.markdown("---")
+        
+        sorted_chats = sorted(
+            st.session_state.chats.items(),
+            key=lambda x: x[1]["created"],
+            reverse=True
+        )
+        
+        for chat_id, chat_data in sorted_chats:
+            if len(chat_data["messages"]) > 0:
+                first_msg = chat_data["messages"][0]["content"]
+                chat_name = first_msg[:30] + "..." if len(first_msg) > 30 else first_msg
+            else:
+                chat_name = "Nouveau Chat"
             
-            if prompt := st.chat_input("Écris un message..."):
-                chat_data["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "user", prompt)
-
-                # Générer une réponse simple pour Amalia
-                response = f"Amalia répond : {prompt[::-1]}"  # Exemple de réponse inversée pour test
-                chat_data["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
-                save_message(st.session_state.current_chat_id, "assistant", response)
+            is_active = chat_id == st.session_state.current_chat_id
+            if st.button(
+                f"{'📌' if is_active else '💬'} {chat_name}",
+                key=f"chat_{chat_id}",
+                use_container_width=True,
+                type="secondary" if is_active else "tertiary"
+            ):
+                st.session_state.current_chat_id = chat_id
                 st.rerun()
+        
+        st.markdown("---")
+        st.markdown("### 📊 Stats")
+        st.metric("Total chats", len(st.session_state.chats))
+        # Vérification de sécurité avant d'accéder à current_chat
+        if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+            current_chat = st.session_state.chats[st.session_state.current_chat_id]
+            st.metric("Messages", len(current_chat["messages"]))
+        else:
+            st.metric("Messages", 0)
 
+    # Afficher les messages (avec vérification de sécurité)
+    if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+        current_chat = st.session_state.chats[st.session_state.current_chat_id]
+        
+        for message in current_chat["messages"]:
+            with st.chat_message(message["role"]):
+                st.markdown(f'<div style="color: #000000;">{message["content"]}</div>', unsafe_allow_html=True)
+    else:
+        st.error("Erreur : Aucun chat actif trouvé. Rechargez la page.")
 
+    # Bouton micro et input
+    col1, col2 = st.columns([1, 10])
 
+    with col1:
+        mic_html = """
+        <div style="margin-top: 8px;">
+            <button id="micBtn" style="
+                background: linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%);
+                color: white;
+                border: none;
+                padding: 12px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                width: 50px;
+                height: 50px;
+            ">🎤</button>
+            <div id="status" style="font-size: 10px; text-align: center; margin-top: 4px; color: #666;"></div>
+        </div>
 
+        <script>
+        const micBtn = document.getElementById('micBtn');
+        const status = document.getElementById('status');
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'fr-FR';
+
+            micBtn.onclick = function() {
+                recognition.start();
+                micBtn.style.background = 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)';
+                micBtn.textContent = '⏺️';
+                status.textContent = 'Écoute...';
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+                micBtn.textContent = '🎤';
+                status.textContent = '✓';
+                
+                const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+                if (chatInput) {
+                    chatInput.value = transcript;
+                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    window.parent.sessionStorage.setItem('voiceMode', 'true');
+                }
+            };
+
+            recognition.onerror = function() {
+                status.textContent = '❌';
+                micBtn.style.background = 'linear-gradient(135deg, #10a37f 0%, #0d8a6d 100%)';
+                micBtn.textContent = '🎤';
+            };
+        } else {
+            status.textContent = 'Non supporté';
+        }
+        </script>
+        """
+        st.components.v1.html(mic_html, height=80)
+
+    with col2:
+        # Input de chat
+        if prompt := st.chat_input("Message Amalia..."):
+            # Vérifier que le chat existe avant d'ajouter
+            if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
+                current_chat = st.session_state.chats[st.session_state.current_chat_id]
+                
+                # Ajouter message utilisateur
+                current_chat["messages"].append({"role": "user", "content": prompt, "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "user", prompt)
+                
+                # Afficher message utilisateur
+                with st.chat_message("user"):
+                    st.markdown(f'<div style="color: #000000;">{prompt}</div>', unsafe_allow_html=True)
+                
+                # Obtenir la réponse de l'IA
+                response = get_response(prompt, st.session_state.current_chat_id)
+                
+                # Ajouter le message de l'assistante
+                current_chat["messages"].append({"role": "assistant", "content": response, "timestamp": datetime.now().isoformat()})
+                save_message(st.session_state.current_chat_id, "assistant", response)
+                
+                # Afficher le message de l'assistante
+                with st.chat_message("assistant"):
+                    st.markdown(f'<div style="color: #000000;">{response}</div>', unsafe_allow_html=True)
+                
+                st.rerun()  # Recharger la page pour mettre à jour l'affichage
 
