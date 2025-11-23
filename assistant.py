@@ -3,10 +3,8 @@ import threading
 import time
 from gtts import gTTS
 import os
-
 import random
 import datetime
-import pywhatkit
 import re
 import webbrowser
 from googletrans import Translator
@@ -18,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 import smtplib
 import email
 import imaplib
-from assistant import traiter_commande
+        
 
 
 # Configurer wikipedia en français
