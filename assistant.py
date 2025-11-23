@@ -7,7 +7,7 @@ import random
 import datetime
 import re
 import webbrowser
-from googletrans import Translator
+
 import wikipedia
 import feedparser
 import requests
@@ -138,21 +138,6 @@ def definir_mot(mot):
     except Exception as e:
         parle("Erreur lors de la recherche de la définition.")
 
-def traduire():
-    parle("Que veux-tu traduire ?")
-    phrase = ecoute()
-    if phrase:
-        parle("Vers quelle langue ? (anglais, espagnol, portugais)")
-        langue = ecoute()
-        codes = {"anglais": "en", "espagnol": "es", "portugais": "pt"}
-        dest = codes.get(langue)
-        if not dest:
-            parle("Langue non reconnue.")
-            return
-        trad = translator.translate(phrase, src="fr", dest=dest)
-        parle(f"Traduction en {langue} : {trad.text}")
-    else:
-        parle("Je n'ai pas compris la phrase à traduire.")
 
 def recherche_google():
     parle("Que veux-tu chercher sur Google ?")
@@ -249,8 +234,7 @@ def traiter_commande(cmd):
         mot = ecoute()
         if mot:
             definir_mot(mot)
-    elif "traduire" in cmd or "traduis-moi" in cmd:
-        traduire()
+
     elif "cherche" in cmd or "recherche" in cmd:
         recherche_google()
     elif "ça va" in cmd:
